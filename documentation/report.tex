@@ -1,4 +1,4 @@
-\documentclass[11pt,a4paper]{article}
+\documentclass[11pt,a4paper]{report}
 
 \usepackage[margin=2.5cm]{geometry}
 \usepackage[T1]{fontenc}
@@ -23,97 +23,24 @@
 
 \begin{document}
 \raggedbottom
+\pagenumbering{gobble}
 
 \maketitle
+\clearpage
+\pagenumbering{roman}
 \tableofcontents
-\newpage
+\clearpage
+\pagenumbering{arabic}
 
-\section{Introduction and Scenario}
-
-\subsection{Scenario Choice}
-
-\subsection{Core Architectural Problem}
-
-\section{Current-State Analysis}
-
-\subsection{Overview of nopCommerce}
-
-\subsection{Strengths}
-
-\subsection{Limitations under Scenario}
-
-\section{Domain and Bounded Contexts}
-
-\subsection{Domain Overview}
-
-\subsection{Bounded Contexts}
-
-\subsection{Responsibilities}
-
-\subsection{Architecture Diagram}
-
-\section{Quality Attribute Scenarios}
-
-\section{Architectural Approach}
-
-\subsection{Chosen Framework}
-
-\subsection{Justification}
-
-\section{Target Architecture}
-
-\subsection{Overview}
-
-\subsection{Components}
-
-\subsection{Interactions}
-
-\subsection{Data Ownership}
-
-\subsection{Main Architecture Diagram}
-
-\section{Architectural Decisions}
-
-\subsection{ADR 1 - Async Messaging}
-
-\subsubsection{Context}
-
-\subsubsection{Decision}
-
-\subsubsection{Alternatives Considered}
-
-\subsubsection{Consequences}
-
-\subsection{ADR 2 - Message Broker}
-
-\subsubsection{Context}
-
-\subsubsection{Decision}
-
-\subsubsection{Alternatives Considered}
-
-\subsubsection{Consequences}
-
-\subsection{ADR 3 - Reliability Mechanism}
-
-\subsubsection{Context}
-
-\subsubsection{Decision}
-
-\subsubsection{Alternatives Considered}
-
-\subsubsection{Consequences}
-
-\section{Risk and Validation Plan}
-
-\section{Evolution Roadmap}
-
-\section{Feasibility Spike}
-
-\subsection{What Was Tested}
-
-\subsection{What Worked}
-
-\subsection{Evidence}
+\input{chapters/01-introduction-and-scenario}
+\input{chapters/02-current-state-analysis}
+\input{chapters/03-domain-and-bounded-contexts}
+\input{chapters/04-quality-attribute-scenarios}
+\input{chapters/05-architectural-approach}
+\input{chapters/06-target-architecture}
+\input{chapters/07-architectural-decisions}
+\input{chapters/08-risk-and-validation-plan}
+\input{chapters/09-evolution-roadmap}
+\input{chapters/10-feasibility-spike}
 
 \end{document}
