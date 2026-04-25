@@ -2,4 +2,28 @@
 
 \section{Scenario Choice}
 
+This project follows \textbf{Scenario C - Omnichannel Commerce Core}. VerdeMart Retail
+started by using nopCommerce as its online storefront, but the business now needs more than a
+web shop. It wants web sales, warehouse execution, shipping, store operations, support, and
+customer visibility to work together as part of one commerce experience.
+
+In this scenario, nopCommerce becomes the commerce core of that wider ecosystem. A web
+order should be reflected in operational systems such as warehouse and shipping, and changes
+that happen outside nopCommerce, such as stock or fulfillment updates, should become visible
+again in the customer and operator experience. This is important because those surrounding
+systems may be slow, stale, unavailable, or inconsistent, but the commerce experience still
+needs to remain useful and understandable.
+
 \section{Core Architectural Problem}
+
+Currently, nopCommerce mainly acts as the online shop: it owns the storefront, catalog
+browsing, cart, checkout, customer accounts, and order creation inside one web-centered
+platform. This works while the business is mostly operating through the online channel, but it
+does not fully address an omnichannel environment where warehouse execution, shipping,
+store operations, and support systems also influence the customer experience.
+
+The core architectural problem is deciding how this online shop can evolve into a commerce
+core without assuming that every surrounding operational system is always fast, available, and
+consistent. The architecture must define what remains inside nopCommerce, what moves around
+it, and how the system behaves when warehouse or shipping state is delayed, stale, unavailable,
+or later recovered.
