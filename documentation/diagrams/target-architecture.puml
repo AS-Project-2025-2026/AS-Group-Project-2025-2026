@@ -1,0 +1,158 @@
+@startuml VerdeMart_Target_Architecture
+
+title VerdeMart Omnichannel Commerce Core - Target Architecture
+
+skinparam backgroundColor #FAFAFA
+skinparam shadowing false
+skinparam roundCorner 12
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam packageStyle rectangle
+skinparam componentStyle rectangle
+skinparam ArrowColor #2F3A45
+skinparam ArrowThickness 1.4
+
+skinparam rectangle {
+  BorderColor #2F3A45
+  FontColor #1E2A32
+}
+
+skinparam database {
+  BorderColor #2F3A45
+  BackgroundColor #FFF3C4
+}
+
+skinparam queue {
+  BorderColor #2F3A45
+  BackgroundColor #EADCF8
+}
+
+legend right
+  |= Color |= Meaning |
+  |<#D8EAFD>| Customer-facing commerce |
+  |<#E0F2E9>| Integration and orchestration |
+  |<#FFF3C4>| Owned data store |
+  |<#FDE2E1>| External operational system |
+  |<#EADCF8>| Async messaging / durable work |
+  |<#F6E7C8>| Observability and support |
+endlegend
+
+actor "Web Customer" as Customer #D8EAFD
+actor "Store Operator" as StoreOperator #D8EAFD
+actor "Support Agent" as SupportAgent #F6E7C8
+
+rectangle "nopCommerce Commerce Core" as NopCore #D8EAFD {
+  component "Storefront\nCatalog + Product Pages" as Storefront #D8EAFD
+  component "Cart and Checkout" as Checkout #D8EAFD
+  component "Payment Result Handling" as Payment #D8EAFD
+  component "Order Management" as Orders #D8EAFD
+  component "Customer and Operator\nStatus Views" as StatusViews #D8EAFD
+  component "Stock Validation\nat Checkout" as StockValidation #D8EAFD
+  database "nopCommerce DB\nCustomers, carts,\norders, payments" as NopDb #FFF3C4
+}
+
+rectangle "Integration Layer" as Integration #E0F2E9 {
+  component "Event Publisher\nOrderCreated, PaymentConfirmed" as EventPublisher #E0F2E9
+  queue "Durable Integration Queue\npending work + retry state" as IntegrationQueue #EADCF8
+  component "Integration Orchestrator\nrouting + retry + idempotency" as Orchestrator #E0F2E9
+  component "Reconciliation Service\nstock/order mismatch recovery" as Reconciliation #E0F2E9
+  component "Dead Letter Handling\nmanual review required" as DeadLetter #EADCF8
+  database "Integration Store\ncorrelation IDs, attempts,\nfailures, reconciliation records" as IntegrationStore #FFF3C4
+}
+
+rectangle "Operational Adapters" as Adapters #E0F2E9 {
+  component "Warehouse Adapter\nfulfillment requests + updates" as WarehouseAdapter #E0F2E9
+  component "Inventory Adapter\nstock events + availability view" as InventoryAdapter #E0F2E9
+  component "Shipping Adapter\nlabels + tracking updates" as ShippingAdapter #E0F2E9
+  component "Store Operations Adapter\nPOS + pickup updates" as StoreAdapter #E0F2E9
+}
+
+rectangle "Surrounding Operational Systems" as External #FDE2E1 {
+  component "Warehouse Execution System\npick, pack, dispatch" as WarehouseSystem #FDE2E1
+  component "Inventory / Stock Service\nwarehouse stock state" as InventorySystem #FDE2E1
+  component "Shipping Provider\nlabel creation + tracking" as ShippingProvider #FDE2E1
+  component "Store POS / Pickup System\nin-store sales + pickup" as StoreSystem #FDE2E1
+}
+
+rectangle "Support and Operations" as Ops #F6E7C8 {
+  component "Operations Dashboard\npending, degraded, failed,\nrecovered work" as OpsDashboard #F6E7C8
+  component "Alerting and Logs\ntimeouts, retries, dead letters" as Alerts #F6E7C8
+}
+
+' Customer-facing synchronous flow
+Customer --> Storefront : browse products\n(sync)
+Customer --> Checkout : cart + checkout\n(sync)
+Checkout --> StockValidation : validate stock\n(sync)
+Checkout --> Payment : payment result\n(sync)
+Payment --> Orders : create paid order\n(sync)
+Storefront --> NopDb : read catalog/customer data
+Checkout --> NopDb : persist cart/checkout state
+Orders --> NopDb : persist canonical order
+StatusViews --> NopDb : read customer order state
+
+' Store/support synchronous visibility
+StoreOperator --> StatusViews : view pickup/order state\n(sync)
+SupportAgent --> OpsDashboard : inspect degraded orders\n(sync)
+OpsDashboard --> IntegrationStore : read retry/failure state
+StatusViews --> IntegrationStore : read integration status
+
+' Async publishing from commerce core
+Orders --> EventPublisher : order created / paid\n(in-process)
+EventPublisher --> IntegrationQueue : publish integration task\n(async)
+IntegrationQueue --> Orchestrator : consume pending work\n(async)
+Orchestrator --> IntegrationStore : update attempts,\ncorrelation, status
+
+' Warehouse flow
+Orchestrator --> WarehouseAdapter : route fulfillment task\n(async)
+WarehouseAdapter --> WarehouseSystem : create fulfillment request\n(API)
+WarehouseSystem --> WarehouseAdapter : picked/packed/failed update\n(webhook/event)
+WarehouseAdapter --> IntegrationQueue : fulfillment update\n(async)
+WarehouseAdapter --> IntegrationStore : timeout/failure status
+
+' Inventory flow
+InventorySystem --> InventoryAdapter : stock changed\n(event/API)
+StoreSystem --> StoreAdapter : in-store sale / pickup update\n(event/API)
+StoreAdapter --> InventoryAdapter : store stock impact\n(async)
+InventoryAdapter --> IntegrationStore : stale/conflict detected
+InventoryAdapter --> NopDb : update availability view\n(via controlled boundary)
+Reconciliation --> InventoryAdapter : resolve stock mismatch\n(async)
+
+' Shipping flow
+WarehouseAdapter --> ShippingAdapter : ready to dispatch\n(async)
+ShippingAdapter --> ShippingProvider : request label\n(API)
+ShippingProvider --> ShippingAdapter : label/tracking or timeout
+ShippingAdapter --> IntegrationStore : label pending/created/failed
+ShippingAdapter --> IntegrationQueue : retry failed label request\n(async)
+
+' Recovery and dead letter handling
+Orchestrator --> Reconciliation : inconsistent state detected\n(async)
+Orchestrator --> DeadLetter : retry limit exceeded\n(async)
+DeadLetter --> OpsDashboard : manual intervention required
+Alerts <-- Orchestrator : retry failures / degradation
+Alerts <-- WarehouseAdapter : warehouse timeout
+Alerts <-- ShippingAdapter : shipping outage
+Alerts <-- InventoryAdapter : stale inventory
+
+note right of Checkout
+Checkout remains customer-facing and synchronous.
+It should not block on warehouse or shipping calls.
+end note
+
+note bottom of IntegrationQueue
+Durable asynchronous work protects orders
+when surrounding systems are slow or unavailable.
+end note
+
+note right of IntegrationStore
+The integration layer owns retry metadata,
+correlation IDs, dead letters, and reconciliation state.
+It does not own customer or order data.
+end note
+
+note bottom of NopDb
+nopCommerce remains the owner of customers,
+carts, checkout state, payments, and canonical web orders.
+External systems do not share this database.
+end note
+
+@enduml
