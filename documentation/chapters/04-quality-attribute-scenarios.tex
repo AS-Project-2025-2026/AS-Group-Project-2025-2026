@@ -1,1 +1,160 @@
 \chapter{Quality Attribute Scenarios}
+
+Quality attribute scenarios make the architectural drivers measurable. For the VerdeMart
+omnichannel scenario, the most important pressure is not only that nopCommerce must create
+orders correctly, but that the commerce experience must remain understandable while warehouse,
+shipping, store, and support systems are slow, stale, unavailable, or later recovering.
+
+The scenarios below use the six-part structure from the course material: stimulus source,
+stimulus, artifact, environment, response, and response measure.
+
+\section{Architectural Drivers}
+
+The scenarios are driven by four architectural concerns:
+
+\begin{itemize}
+    \item \textbf{Availability:} web orders must not be lost when warehouse or shipping systems fail.
+    \item \textbf{Consistency:} inventory and order state may be temporarily stale, but inconsistencies must be visible and recoverable.
+    \item \textbf{Performance:} customer-facing operations must stay responsive during backend synchronization and sales peaks.
+    \item \textbf{Modifiability:} new operational channels must be integrated without rewriting checkout or sharing the nopCommerce database.
+\end{itemize}
+
+\section{Scenario 1 - Availability under Warehouse Failure}
+
+\textbf{Driver:} Availability and operational continuity.
+
+\begin{center}
+\begin{tabular}{|p{0.28\textwidth}|p{0.62\textwidth}|}
+\hline
+\textbf{Part} & \textbf{VerdeMart scenario} \\
+\hline
+Stimulus source & Warehouse execution system \\
+\hline
+Stimulus & The warehouse API takes more than 10 seconds to respond or rejects fulfillment requests for newly paid web orders. \\
+\hline
+Artifact & Fulfillment synchronization and the order status view shown to customers and operators \\
+\hline
+Environment & Friday afternoon peak traffic, with 3 times normal order volume, while the warehouse dependency is degraded but the web shop is still accepting orders \\
+\hline
+Response & The order is accepted and persisted locally; the fulfillment request is stored for asynchronous retry; the order is shown as awaiting warehouse confirmation; subsequent orders are not blocked by the degraded dependency. \\
+\hline
+Response measure & No paid order is lost; no duplicate fulfillment request is sent; pending fulfillment state is visible to support within 30 seconds; retry or escalation starts within 5 minutes. \\
+\hline
+\end{tabular}
+\end{center}
+
+\section{Scenario 2 - Consistency under Stale Inventory}
+
+\textbf{Driver:} Consistency and recoverable inventory state.
+
+\begin{center}
+\begin{tabular}{|p{0.28\textwidth}|p{0.62\textwidth}|}
+\hline
+\textbf{Part} & \textbf{VerdeMart scenario} \\
+\hline
+Stimulus source & Store point-of-sale system and warehouse stock service \\
+\hline
+Stimulus & A store sale reduces stock by 5 units, but the update reaches nopCommerce 3 minutes after the web catalog still showed those units as available. \\
+\hline
+Artifact & Inventory availability view used by product pages, cart validation, and checkout \\
+\hline
+Environment & Concurrent web and physical-store sales for the same product during a promotion, with external stock updates delayed by up to 3 minutes \\
+\hline
+Response & The commerce core marks stock data as stale, revalidates stock before checkout completion, preserves already-created orders for reconciliation, and records an inventory discrepancy for recovery. \\
+\hline
+Response measure & Product pages show stale stock status within 30 seconds of detection; overselling stays under 1\% of affected order lines; inventory discrepancies are queued for reconciliation within 1 minute. \\
+\hline
+\end{tabular}
+\end{center}
+
+\section{Scenario 3 - Performance during Omnichannel Order Bursts}
+
+\textbf{Driver:} Performance under customer-facing load.
+
+\begin{center}
+\begin{tabular}{|p{0.28\textwidth}|p{0.62\textwidth}|}
+\hline
+\textbf{Part} & \textbf{VerdeMart scenario} \\
+\hline
+Stimulus source & Web customers, store operators, and customer support agents \\
+\hline
+Stimulus & A campaign creates 5 times normal traffic for product browsing, cart validation, order creation, and order-status queries. \\
+\hline
+Artifact & Storefront, checkout path, order status view, and integration event publishing path \\
+\hline
+Environment & Peak campaign period, with 5 times normal traffic and background synchronization still running \\
+\hline
+Response & The system prioritizes checkout writes, serves order-status reads from a projection, and processes warehouse and shipping synchronization asynchronously without blocking the customer request path. \\
+\hline
+Response measure & Checkout p95 latency remains below 2 seconds; order-status read p95 remains below 1 second; at least 99\% of integration events are published or queued within 60 seconds. \\
+\hline
+\end{tabular}
+\end{center}
+
+\section{Scenario 4 - Recoverability after Shipping Outage}
+
+\textbf{Driver:} Recoverability after external dependency failure.
+
+\begin{center}
+\begin{tabular}{|p{0.28\textwidth}|p{0.62\textwidth}|}
+\hline
+\textbf{Part} & \textbf{VerdeMart scenario} \\
+\hline
+Stimulus source & Shipping provider or shipping adapter \\
+\hline
+Stimulus & Shipment label creation fails for 50 ready-to-dispatch orders and later becomes available again. \\
+\hline
+Artifact & Shipping integration workflow, retry queue, and order shipment status \\
+\hline
+Environment & Warehouse has packed orders, but the external shipping provider is unavailable for 20 minutes \\
+\hline
+Response & The system stores failed label requests, keeps orders in a clear awaiting-shipping state, avoids repeated synchronous calls from operators, and resumes processing automatically when the provider recovers. \\
+\hline
+Response measure & 100\% of failed label requests are retained; operators see the outage state within 30 seconds; 95\% of queued labels are created within 10 minutes after provider recovery. \\
+\hline
+\end{tabular}
+\end{center}
+
+\section{Scenario 5 - Modifiability for New Operational Channels}
+
+\textbf{Driver:} Modifiability and controlled integration growth.
+
+\begin{center}
+\begin{tabular}{|p{0.28\textwidth}|p{0.62\textwidth}|}
+\hline
+\textbf{Part} & \textbf{VerdeMart scenario} \\
+\hline
+Stimulus source & VerdeMart business team and integration developers \\
+\hline
+Stimulus & A new store-operations system must receive order-ready-for-pickup events and send pickup-completed updates back to the commerce core. \\
+\hline
+Artifact & Integration layer, domain events, and order status update boundary \\
+\hline
+Environment & Existing web, warehouse, and shipping integrations are already in production \\
+\hline
+Response & The architecture allows the new channel to be added through a new adapter and event subscription without changing checkout logic or sharing the nopCommerce database with the external system. \\
+\hline
+Response measure & The new integration requires changes in no more than one adapter and one application-service boundary; no direct external database access is introduced; regression tests for checkout and existing integrations remain green. \\
+\hline
+\end{tabular}
+\end{center}
+
+\section{Traceability to Architectural Drivers}
+
+\begin{center}
+\begin{tabular}{|p{0.48\textwidth}|p{0.38\textwidth}|}
+\hline
+\textbf{Scenario} & \textbf{Architectural driver} \\
+\hline
+Availability under warehouse failure & Availability, recoverability \\
+\hline
+Consistency under stale inventory & Consistency \\
+\hline
+Performance during omnichannel order bursts & Performance \\
+\hline
+Recoverability after shipping outage & Recoverability, availability \\
+\hline
+Modifiability for new operational channels & Modifiability \\
+\hline
+\end{tabular}
+\end{center}
