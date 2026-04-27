@@ -2,4 +2,91 @@
 
 \section{Chosen Framework}
 
+The selected architectural design framework is \textbf{Attribute-Driven Design (ADD)}.
+
+ADD fits this project because the VerdeMart scenario is mainly driven by measurable quality
+attribute pressures. The main question is not only which components should exist, but how the
+commerce core should behave when surrounding operational systems are delayed, stale,
+unavailable, or recovering.
+
+In this project, ADD is applied as follows:
+
+\begin{enumerate}
+    \item Identify the business and architectural drivers for the omnichannel commerce core.
+    \item Define quality attribute scenarios for the most important runtime pressures.
+    \item Select architectural tactics that satisfy those scenarios.
+    \item Decompose the target architecture into responsibilities, integration boundaries, and external adapters.
+    \item Validate the design through a focused runtime demonstration of degradation and recovery.
+\end{enumerate}
+
 \section{Justification}
+
+The chosen scenario requires nopCommerce to evolve from a web storefront into the commerce
+core of a wider operational ecosystem. This creates architectural pressure in five main areas:
+availability, consistency, performance, recoverability, and modifiability.
+
+ADD is appropriate because each of these pressures can be expressed as a concrete quality
+attribute scenario. Warehouse failure drives the need for asynchronous fulfillment and retry.
+Stale inventory drives the need for inventory visibility, revalidation, and reconciliation. Order
+bursts drive the need to protect customer-facing paths from slow backend synchronization.
+Shipping outage drives the need for durable retry and explicit recovery state. New operational
+channels drive the need for adapters and stable integration boundaries.
+
+This gives a direct trace from the problem to the architecture:
+
+\begin{center}
+\begin{tabular}{|p{0.28\textwidth}|p{0.58\textwidth}|}
+\hline
+\textbf{ADD input} & \textbf{Architectural consequence} \\
+\hline
+Availability scenario & Avoid synchronous dependency on warehouse systems during checkout. \\
+\hline
+Consistency scenario & Introduce explicit inventory state, stale-state visibility, and reconciliation. \\
+\hline
+Performance scenario & Keep checkout and order reads separate from slow integration processing. \\
+\hline
+Recoverability scenario & Store failed integration work durably and retry after dependency recovery. \\
+\hline
+Modifiability scenario & Add external systems through adapters instead of direct database coupling. \\
+\hline
+\end{tabular}
+\end{center}
+
+\section{Why Not ACDM or ADM as the Main Framework}
+
+\textbf{ACDM} was considered because it is useful for architectural decision-making, risk
+discussion, and stakeholder validation. However, it is not the main framework for this project
+because the strongest design input is the set of measurable quality attribute scenarios. The
+project must show runtime behavior under failure, delay, stale state, and recovery; ADD gives a
+more direct path from those scenarios to concrete architectural tactics and component
+responsibilities.
+
+ACDM-style reasoning is still useful later in the project, especially when documenting ADRs and
+explaining rejected alternatives. For example, the decision to use asynchronous integration can
+be recorded as an ADR with alternatives such as direct synchronous calls or shared database
+access. However, the decision itself is primarily driven by the availability and recoverability
+scenarios, which makes ADD the better primary method.
+
+\textbf{ADM/TOGAF} was also considered, but it is broader than necessary for this assignment.
+ADM is better suited to enterprise-wide transformation across business, data, application, and
+technology architecture. VerdeMart does have an omnichannel business context, but the scope of
+this work is a focused software architecture evolution of nopCommerce, not a full enterprise
+architecture programme.
+
+\section{How ADD Shapes the Target Architecture}
+
+Using ADD means that each architectural element in the target design should answer a specific
+quality attribute pressure. The surrounding systems are not added only because they exist in the
+business scenario; they are added because they create design pressure that nopCommerce must
+handle explicitly.
+
+For this reason, the target architecture will emphasize asynchronous integration between
+nopCommerce and operational systems. It will also make status explicit for pending, degraded,
+failed, and recovered work, so that customers, support agents, and operators can understand
+what is happening during dependency failures. Warehouse, inventory, and shipping flows will
+use retry and reconciliation mechanisms instead of assuming that every external system is
+always available. External systems will be connected through adapters to avoid coupling them
+directly to nopCommerce internals, and data ownership will remain explicit so that surrounding
+systems do not share the nopCommerce database.
+
+The next chapter uses these ADD-driven conclusions to define the target architecture.
