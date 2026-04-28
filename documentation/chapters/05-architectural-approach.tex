@@ -12,11 +12,11 @@ unavailable, or recovering.
 In this project, ADD is applied as follows:
 
 \begin{enumerate}
-    \item Identify the business and architectural drivers for the omnichannel commerce core.
-    \item Define quality attribute scenarios for the most important runtime pressures.
-    \item Select architectural tactics that satisfy those scenarios.
-    \item Decompose the target architecture into responsibilities, integration boundaries, and external adapters.
-    \item Validate the design through a focused runtime demonstration of degradation and recovery.
+    \item Drivers identified: availability, consistency, performance, recoverability, and modifiability.
+    \item Five quality attribute scenarios defined, each with a measurable response.
+    \item Tactics selected per scenario: asynchronous integration, transactional outbox-style event publishing, read-model separation, retry queue, reconciliation, adapter pattern, and observability.
+    \item Target architecture decomposed around those tactics: nopCommerce Core, Integration Layer, Operational Adapters, External Systems, and Support and Operations View.
+    \item Validation focused on the riskiest path: asynchronous propagation, degraded dependency handling, retry, and recovery.
 \end{enumerate}
 
 \section{Justification}
@@ -35,19 +35,19 @@ channels drive the need for adapters and stable integration boundaries.
 This gives a direct trace from the problem to the architecture:
 
 \begin{center}
-\begin{tabular}{|p{0.28\textwidth}|p{0.58\textwidth}|}
+\begin{tabular}{|p{0.2\textwidth}|p{0.2\textwidth}|p{0.45\textwidth}|}
 \hline
-\textbf{ADD input} & \textbf{Architectural consequence} \\
+\textbf{ADD input} & \textbf{Scenario} & \textbf{Architectural consequence} \\
 \hline
-Availability scenario & Avoid synchronous dependency on warehouse systems during checkout. \\
+Availability & Scenario 1 & Avoid synchronous dependency on warehouse systems during checkout. \\
 \hline
-Consistency scenario & Introduce explicit inventory state, stale-state visibility, and reconciliation. \\
+Consistency & Scenario 2 & Introduce explicit inventory state, stale-state visibility, and reconciliation. \\
 \hline
-Performance scenario & Keep checkout and order reads separate from slow integration processing. \\
+Performance & Scenario 3 & Keep checkout and order reads separate from slow integration processing. \\
 \hline
-Recoverability scenario & Store failed integration work durably and retry after dependency recovery. \\
+Recoverability & Scenario 4 & Store failed integration work durably and retry after dependency recovery. \\
 \hline
-Modifiability scenario & Add external systems through adapters instead of direct database coupling. \\
+Modifiability & Scenario 5 & Add external systems through adapters instead of direct database coupling. \\
 \hline
 \end{tabular}
 \end{center}
@@ -80,13 +80,16 @@ quality attribute pressure. The surrounding systems are not added only because t
 business scenario; they are added because they create design pressure that nopCommerce must
 handle explicitly.
 
-For this reason, the target architecture will emphasize asynchronous integration between
-nopCommerce and operational systems. It will also make status explicit for pending, degraded,
-failed, and recovered work, so that customers, support agents, and operators can understand
-what is happening during dependency failures. Warehouse, inventory, and shipping flows will
-use retry and reconciliation mechanisms instead of assuming that every external system is
-always available. External systems will be connected through adapters to avoid coupling them
-directly to nopCommerce internals, and data ownership will remain explicit so that surrounding
-systems do not share the nopCommerce database.
+The target architecture emphasizes asynchronous integration because Scenario 1 requires that a
+warehouse timeout does not block checkout. A direct synchronous call from checkout to the
+warehouse cannot satisfy that constraint, so accepted orders are propagated through a durable
+integration path.
+
+It also makes status explicit for pending, degraded, failed, and recovered work because
+Scenarios 1 and 4 require support agents and operators to understand what is happening during
+warehouse or shipping failure. Retry and reconciliation are part of the architecture because
+Scenarios 2 and 4 assume stale inventory, failed label creation, and later recovery. External
+systems are connected through adapters because Scenario 5 requires new operational channels to
+be added without rewriting checkout or sharing the nopCommerce database.
 
 The next chapter uses these ADD-driven conclusions to define the target architecture.
