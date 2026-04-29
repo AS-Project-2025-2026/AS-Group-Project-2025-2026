@@ -1,7 +1,7 @@
 \chapter{Current-State Analysis}
 
 \section{Architecture Overview}
-nopCommerce follows onion architecture, where all dependencies point inward toward the core. The solution is split into four main layers: \texttt{Nop.Core}, \texttt{Nop.Data}, \texttt{Nop.Services}, and the presentation layer (\texttt{Nop.Web} and \texttt{Nop.Web.Framework}). NopcommerceGitHub
+nopCommerce follows onion architecture, where all dependencies point inward toward the core. The solution is split into four main layers: \texttt{Nop.Core}, \texttt{Nop.Data}, \texttt{Nop.Services}, and the presentation layer (\texttt{Nop.Web} and \texttt{Nop.Web.Framework}).
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.68\textwidth]{images/nopCommerceArchitecture.png}
@@ -10,16 +10,16 @@ nopCommerce follows onion architecture, where all dependencies point inward towa
 \end{figure}
 Each layer has a specific role:
 \begin{itemize}
-\item \textbf{\texttt{Nop.Core}}: The innermost layer. Contains domain entities, caching, events, and helper classes shared across the whole solution. It has no dependencies on any other project. Nopcommerce Key Scenario C entities live here: \texttt{Order}, \texttt{OrderItem}, \texttt{Product}, \texttt{ProductWarehouseInventory}, \texttt{StockQuantityHistory}, \texttt{Warehouse}, and \texttt{Shipment}.
-\item \textbf{\texttt{Nop.Data}}: Separates data-access logic from business objects. nopCommerce uses a Linq2DB Code-First approach, with FluentMigrator for schema migrations and Fluent API for persistence mappings. Nopcommerce
-\item \textbf{\texttt{Nop.Services}}: The outermost layer of the Application Core. It holds business logic, validations, and calculations, and uses a repository pattern to expose features to layers above it. GitHub This is where order processing, inventory adjustment, shipping, and checkout logic live.
-\item \textbf{\texttt{Nop.Web}} and \textbf{\texttt{Nop.Web.Framework}}: The presentation layer. \texttt{Nop.Web} contains controllers, models, views, and the storefront and admin area. \texttt{Nop.Web.Framework} is a shared class library with common presentation logic used by both the public site and the admin panel. nopCommerce
-\item \textbf{Plugins}: Loaded as separate Visual Studio projects and extend nopCommerce for payments, shipping, authentication, search, and other integrations. Nopcommerce They run inside the same runtime as the monolith.
+\item \textbf{\texttt{Nop.Core}}: The innermost layer. Contains domain entities, caching, events, and helper classes shared across the whole solution. It has no dependencies on any other project. Key Scenario C entities live here: \texttt{Order}, \texttt{OrderItem}, \texttt{Product}, \texttt{ProductWarehouseInventory}, \texttt{StockQuantityHistory}, \texttt{Warehouse}, and \texttt{Shipment}.
+\item \textbf{\texttt{Nop.Data}}: Separates data-access logic from business objects. nopCommerce uses a Linq2DB Code-First approach, with FluentMigrator for schema migrations and Fluent API for persistence mappings.
+\item \textbf{\texttt{Nop.Services}}: The outermost layer of the Application Core. It holds business logic, validations, and calculations, and uses a repository pattern to expose features to layers above it. This is where order processing, inventory adjustment, shipping, and checkout logic live.
+\item \textbf{\texttt{Nop.Web}} and \textbf{\texttt{Nop.Web.Framework}}: The presentation layer. \texttt{Nop.Web} contains controllers, models, views, and the storefront and admin area. \texttt{Nop.Web.Framework} is a shared class library with common presentation logic used by both the public site and the admin panel.
+\item \textbf{Plugins}: Loaded as separate Visual Studio projects and extend nopCommerce for payments, shipping, authentication, search, and other integrations. They run inside the same runtime as the monolith.
 \end{itemize}
 \section{How a Purchase Works Today}
 A customer order flows from the storefront controllers in \texttt{Nop.Web} down through \texttt{Nop.Services}. \texttt{OrderProcessingService} creates the order, adjusts inventory, persists state via repositories, and publishes internal events like \texttt{OrderPlacedEvent}. Shipment updates follow later through shipment services, which update order status and trigger notification events.
 This works cleanly when nopCommerce owns the full picture. It breaks down when an external warehouse, POS, or carrier system owns part of the order's lifecycle and may be slow, unavailable, or return conflicting data.
-The internal event system is also worth noting. It publishes events in-process to registered consumers and awaits each one. If a consumer fails, the error is logged and execution continues. There is no message broker, no retry mechanism, no replay, and no dead-letter queue. This is fine for cache invalidation or plugin reactions — it is not sufficient for reliable integration with external systems.
+The internal event system is also worth noting. It publishes events in-process to registered consumers and awaits each one. If a consumer fails, the error is logged and execution continues. There is no message broker and no standard durable integration retry, replay, or dead-letter mechanism. This is fine for cache invalidation or plugin reactions — it is not sufficient for reliable integration with external systems.
 \section{What Already Works for Scenario C}
 \subsection{Order Capture and Customer Visibility}
 nopCommerce has mature order management: customer accounts, checkout, payment status, order history, shipment tracking, admin screens, and notification emails. This gives Scenario C a solid foundation. The order placement workflow is a natural seam where an integration event like "order accepted for fulfillment" can be emitted — currently it only fires in-process, but extending it with a durable outbox is straightforward without touching checkout itself.
@@ -28,7 +28,7 @@ The platform already models stock quantity, reserved quantities, warehouse assig
 \subsection{Fulfillment and Shipping}
 Shipment entities, tracking numbers, shipping plugins, pickup-in-store support, and customer notifications for shipping progress are all present. These support buy-online-fulfill-elsewhere flows. The gap is that shipment state is currently set by administrators or computed inside nopCommerce — there is no first-class integration status like "sent to WMS," "warehouse delayed," or "awaiting carrier confirmation."
 \subsection{Plugins and Scheduled Tasks}
-The architecture is modular, making it compatible with a variety of third-party services including ERPs, PIMs, and POS systems through its Web API plugin. Wired In Scheduled tasks can run background work — retries, synchronization, cleanup — and are protected against overlapping execution. These are useful extension points for Scenario C, though they lack the reliability structure needed for durable integration on their own.
+The architecture is modular, making it compatible with a variety of third-party services including ERPs, PIMs, and POS systems through its Web API plugin. Scheduled tasks can run background work — retries, synchronization, cleanup — and are protected against overlapping execution. These are useful extension points for Scenario C, though they lack the reliability structure needed for durable integration on their own.
 \section{What Does Not Work for Scenario C}
 \subsection{No Durable Integration Path}
 The biggest gap is that there is no outbox, no integration message lifecycle, and no retry state. When an order is placed and the warehouse system is down, nopCommerce has no built-in guarantee that a fulfillment command was recorded, will be retried, or can be reconciled later. Logging an error is not a recovery path — operators need to know whether the order is waiting, failed, duplicated, or already accepted.
@@ -39,7 +39,7 @@ When a plugin calls an external system during checkout or shipping-rate calculat
 \subsection{No Standard Failure State or Reconciliation Model}
 There is no common status model for integration messages: no "pending," "retrying," "failed," or "dead-lettered" states. There is no correlation between a placed order, the fulfillment command sent from it, and the acknowledgement (or conflict) that comes back. This makes recovery from partial failures opaque.
 \subsection{Shared Database Must Stay Internal}
-The nopCommerce database blends catalog, orders, customers, stock, shipments, configuration, and logs. This is fine for a monolith. It becomes a problem if external adapters start reading or writing it directly. Presentation logic in \texttt{Nop.Web} is isolated from the database — controllers only reference services, not repositories directly. nopCommerce The same discipline must apply at system boundaries: any fulfillment adapter, stock projection, or integration worker must communicate through APIs or events, not by coupling to nopCommerce tables.
+The nopCommerce database blends catalog, orders, customers, stock, shipments, configuration, and logs. This is fine for a monolith. It becomes a problem if external adapters start reading or writing it directly. Presentation logic in \texttt{Nop.Web} is isolated from the database — controllers only reference services, not repositories directly. The same discipline must apply at system boundaries: any fulfillment adapter, stock projection, or integration worker must communicate through APIs or events, not by coupling to nopCommerce tables.
 \section{Useful Seams for Evolution}
 The architecture provides clear attachment points without requiring a rewrite:
 \begin{itemize}
