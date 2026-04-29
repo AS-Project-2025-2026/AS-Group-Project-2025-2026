@@ -2,10 +2,125 @@
 
 \section{Overview}
 
-\section{Components}
+The target architecture keeps nopCommerce as the commerce core, but stops treating every
+surrounding operational capability as a direct synchronous dependency. nopCommerce remains
+responsible for the customer-facing commerce experience: catalog browsing, cart, checkout,
+customer accounts, payment result handling, and order creation. Around it, the architecture adds
+integration boundaries for warehouse, inventory, shipping, store operations, and support
+visibility.
 
-\section{Interactions}
+The main architectural change is the introduction of an integration layer between nopCommerce
+and the surrounding systems. This layer exposes adapters for external systems, publishes and
+consumes integration events, stores work that cannot be completed immediately, and retries or
+reconciles failed operations. This allows the commerce core to remain useful when warehouse,
+shipping, or store systems are slow, stale, unavailable, or recovering.
+
+The architecture is therefore not a full microservice rewrite of nopCommerce. It is an
+evolutionary architecture where the monolith keeps the responsibilities that are already stable
+inside nopCommerce, while volatile omnichannel coordination is moved to explicit integration
+boundaries.
+
+\section{Main Components and Services}
+
+\textbf{nopCommerce Commerce Core} is the main application and remains the system of record
+for web customers, shopping carts, checkout, payments, and created orders. It owns the
+customer-facing transaction and decides whether an order can be accepted.
+
+\textbf{Integration Layer} is responsible for communication between nopCommerce and external
+operational systems. It receives events from the commerce core, routes them to the correct
+adapter, stores pending integration work, and records failures for retry or reconciliation.
+
+\textbf{Warehouse Adapter} translates accepted orders into fulfillment requests for the
+warehouse execution system. It also receives fulfillment updates such as picked, packed, or
+failed fulfillment.
+
+\textbf{Inventory Adapter} synchronizes stock changes from warehouse and store systems into an
+inventory availability view used by nopCommerce. It is responsible for detecting stale or
+conflicting stock information and triggering reconciliation.
+
+\textbf{Shipping Adapter} manages shipment label creation and shipping status updates. When the
+shipping provider is unavailable, it stores failed label requests and retries them later.
+
+\textbf{Store Operations Adapter} represents physical-store capabilities such as pickup,
+in-store stock changes, and pickup-completed updates. It allows store operations to participate
+in the commerce flow without accessing the nopCommerce database directly.
+
+\textbf{Support and Operations View} gives support agents and operators visibility over pending,
+degraded, failed, and recovered work. This is important because a degraded omnichannel system
+must be understandable, not only technically resilient.
+
+\section{Synchronous and Asynchronous Interactions}
+
+The architecture uses synchronous interactions only when the user needs an immediate answer and
+the dependency is inside the commerce core. Product browsing, cart operations, checkout
+validation, payment result handling, and order creation remain synchronous from the customer's
+point of view. These operations must be fast and predictable because they directly affect the
+buying experience.
+
+Interactions with warehouse, shipping, inventory synchronization, and store operations are
+primarily asynchronous. After an order is created, nopCommerce publishes an order-created event
+or stores an equivalent integration task. The integration layer then sends the fulfillment request
+to the warehouse adapter. If the warehouse is slow or unavailable, the order is not lost and the
+checkout path is not blocked; the fulfillment state becomes pending or degraded and is retried
+later.
+
+Inventory updates also follow an asynchronous model. Warehouse and store systems publish stock
+changes, and the inventory adapter updates the availability view used by nopCommerce. Because
+this data may be stale, checkout still performs stock validation before completion, and detected
+conflicts are sent to reconciliation.
+
+Shipping follows the same pattern. When the warehouse marks an order as ready to dispatch, the
+shipping adapter requests the label. If the provider fails, the label request is stored, the order
+is marked as awaiting shipping, and automatic retry resumes when the provider recovers.
 
 \section{Data Ownership}
 
+Data ownership is explicit to avoid hidden coupling between systems. nopCommerce owns customer
+accounts, carts, checkout state, payment result state, and the canonical web order. External
+systems are not allowed to read or write the nopCommerce database directly.
+
+The warehouse system owns physical fulfillment state, such as picking, packing, dispatch
+preparation, and fulfillment failures. The shipping provider owns carrier label generation and
+carrier tracking updates. Store operations own in-store events such as pickup handling and
+point-of-sale stock changes. The integration layer owns integration metadata: pending work,
+retry attempts, correlation identifiers, failed messages, and reconciliation records.
+
+nopCommerce may keep local views of external state, such as order fulfillment status, inventory
+availability, or shipping status, but these are projections used to support customer and operator
+visibility. They are not shared databases and should be updated through integration messages or
+adapter APIs.
+
+\section{Cross-Cutting Concerns}
+
+\textbf{Reliability} shapes the design because warehouse, shipping, and store systems can fail
+independently. Integration work must be durable, retries must be controlled, and repeated
+messages must not create duplicate fulfillment or shipping actions.
+
+\textbf{Observability} is required because degraded state must be visible. Operators and support
+agents need to know whether an order is waiting for warehouse confirmation, shipping label
+creation, inventory reconciliation, or manual intervention.
+
+\textbf{Consistency} is handled through explicit stale-state handling and reconciliation rather
+than by assuming immediate consistency across all channels. This is necessary because web,
+warehouse, and store operations can observe stock at different times.
+
+\textbf{Security and access control} remain important because surrounding systems should not get
+direct database access. They interact through adapters, APIs, or events with controlled
+permissions.
+
+\textbf{Modifiability} is supported by keeping external systems behind adapters. A new POS,
+warehouse, or shipping provider can be added by implementing or replacing an adapter without
+rewriting checkout or changing the core nopCommerce data model.
+
 \section{Main Architecture Diagram}
+
+The architecture diagram highlights the main design rule: customer-facing commerce remains
+inside nopCommerce, while operational coordination with warehouse, shipping, inventory, and
+store systems happens through explicit integration boundaries.
+
+It also distinguishes customer-facing synchronous flows from asynchronous integration flows.
+This separation is important because checkout and order visibility must remain responsive even
+when external systems are slow or unavailable. Data ownership is explicit: nopCommerce owns
+customers, carts, checkout, payments, and canonical web orders; the integration layer owns retry
+metadata, correlation identifiers, dead letters, and reconciliation records; external systems own
+their operational state.
