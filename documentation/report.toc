@@ -7,7 +7,7 @@
 \contentsline {section}{\numberline {2.3}What Already Works for Scenario C}{3}{section.2.3}%
 \contentsline {subsection}{\numberline {2.3.1}Order Capture and Customer Visibility}{3}{subsection.2.3.1}%
 \contentsline {subsection}{\numberline {2.3.2}Inventory and Warehouse Model}{3}{subsection.2.3.2}%
-\contentsline {subsection}{\numberline {2.3.3}Fulfillment and Shipping}{3}{subsection.2.3.3}%
+\contentsline {subsection}{\numberline {2.3.3}Fulfillment and Shipping}{4}{subsection.2.3.3}%
 \contentsline {subsection}{\numberline {2.3.4}Plugins and Scheduled Tasks}{4}{subsection.2.3.4}%
 \contentsline {section}{\numberline {2.4}What Does Not Work for Scenario C}{4}{section.2.4}%
 \contentsline {subsection}{\numberline {2.4.1}No Durable Integration Path}{4}{subsection.2.4.1}%
@@ -37,29 +37,34 @@
 \contentsline {section}{\numberline {5.4}How ADD Shapes the Target Architecture}{12}{section.5.4}%
 \contentsline {chapter}{\numberline {6}Target Architecture}{13}{chapter.6}%
 \contentsline {section}{\numberline {6.1}Overview}{13}{section.6.1}%
-\contentsline {section}{\numberline {6.2}Components}{13}{section.6.2}%
-\contentsline {section}{\numberline {6.3}Interactions}{13}{section.6.3}%
-\contentsline {section}{\numberline {6.4}Data Ownership}{13}{section.6.4}%
-\contentsline {section}{\numberline {6.5}Main Architecture Diagram}{13}{section.6.5}%
-\contentsline {chapter}{\numberline {7}Architectural Decisions}{14}{chapter.7}%
-\contentsline {section}{\numberline {7.1}ADR 1 - XXX}{14}{section.7.1}%
-\contentsline {subsection}{\numberline {7.1.1}Context}{14}{subsection.7.1.1}%
-\contentsline {subsection}{\numberline {7.1.2}Decision}{14}{subsection.7.1.2}%
-\contentsline {subsection}{\numberline {7.1.3}Alternatives Considered}{14}{subsection.7.1.3}%
-\contentsline {subsection}{\numberline {7.1.4}Consequences}{14}{subsection.7.1.4}%
-\contentsline {section}{\numberline {7.2}ADR 2 - XXX}{14}{section.7.2}%
-\contentsline {subsection}{\numberline {7.2.1}Context}{14}{subsection.7.2.1}%
-\contentsline {subsection}{\numberline {7.2.2}Decision}{14}{subsection.7.2.2}%
-\contentsline {subsection}{\numberline {7.2.3}Alternatives Considered}{14}{subsection.7.2.3}%
-\contentsline {subsection}{\numberline {7.2.4}Consequences}{14}{subsection.7.2.4}%
-\contentsline {section}{\numberline {7.3}ADR 3 - XXX}{14}{section.7.3}%
-\contentsline {subsection}{\numberline {7.3.1}Context}{14}{subsection.7.3.1}%
-\contentsline {subsection}{\numberline {7.3.2}Decision}{14}{subsection.7.3.2}%
-\contentsline {subsection}{\numberline {7.3.3}Alternatives Considered}{14}{subsection.7.3.3}%
-\contentsline {subsection}{\numberline {7.3.4}Consequences}{14}{subsection.7.3.4}%
-\contentsline {chapter}{\numberline {8}Risk and Validation Plan}{15}{chapter.8}%
-\contentsline {chapter}{\numberline {9}Evolution Roadmap}{16}{chapter.9}%
-\contentsline {chapter}{\numberline {10}Feasibility Spike}{17}{chapter.10}%
-\contentsline {section}{\numberline {10.1}What Was Tested}{17}{section.10.1}%
-\contentsline {section}{\numberline {10.2}What Worked}{17}{section.10.2}%
-\contentsline {section}{\numberline {10.3}Evidence}{17}{section.10.3}%
+\contentsline {section}{\numberline {6.2}Main Components and Services}{13}{section.6.2}%
+\contentsline {section}{\numberline {6.3}Synchronous and Asynchronous Interactions}{14}{section.6.3}%
+\contentsline {section}{\numberline {6.4}Data Ownership}{14}{section.6.4}%
+\contentsline {section}{\numberline {6.5}Cross-Cutting Concerns}{14}{section.6.5}%
+\contentsline {section}{\numberline {6.6}Main Architecture Diagram}{15}{section.6.6}%
+\contentsline {chapter}{\numberline {7}Architectural Decisions}{16}{chapter.7}%
+\contentsline {section}{\numberline {7.1}ADR 1 - XXX}{16}{section.7.1}%
+\contentsline {subsection}{\numberline {7.1.1}Context}{16}{subsection.7.1.1}%
+\contentsline {subsection}{\numberline {7.1.2}Decision}{16}{subsection.7.1.2}%
+\contentsline {subsection}{\numberline {7.1.3}Alternatives Considered}{16}{subsection.7.1.3}%
+\contentsline {subsection}{\numberline {7.1.4}Consequences}{16}{subsection.7.1.4}%
+\contentsline {section}{\numberline {7.2}ADR 2 - XXX}{16}{section.7.2}%
+\contentsline {subsection}{\numberline {7.2.1}Context}{16}{subsection.7.2.1}%
+\contentsline {subsection}{\numberline {7.2.2}Decision}{16}{subsection.7.2.2}%
+\contentsline {subsection}{\numberline {7.2.3}Alternatives Considered}{16}{subsection.7.2.3}%
+\contentsline {subsection}{\numberline {7.2.4}Consequences}{16}{subsection.7.2.4}%
+\contentsline {section}{\numberline {7.3}ADR 3 - XXX}{16}{section.7.3}%
+\contentsline {subsection}{\numberline {7.3.1}Context}{16}{subsection.7.3.1}%
+\contentsline {subsection}{\numberline {7.3.2}Decision}{16}{subsection.7.3.2}%
+\contentsline {subsection}{\numberline {7.3.3}Alternatives Considered}{16}{subsection.7.3.3}%
+\contentsline {subsection}{\numberline {7.3.4}Consequences}{16}{subsection.7.3.4}%
+\contentsline {chapter}{\numberline {8}Risk and Validation Plan}{17}{chapter.8}%
+\contentsline {section}{\numberline {8.1}Purpose}{17}{section.8.1}%
+\contentsline {section}{\numberline {8.2}Main Architectural Risks}{17}{section.8.2}%
+\contentsline {section}{\numberline {8.3}Validation Activities}{18}{section.8.3}%
+\contentsline {section}{\numberline {8.4}Feasibility Spike Focus}{18}{section.8.4}%
+\contentsline {chapter}{\numberline {9}Evolution Roadmap}{19}{chapter.9}%
+\contentsline {chapter}{\numberline {10}Feasibility Spike}{20}{chapter.10}%
+\contentsline {section}{\numberline {10.1}What Was Tested}{20}{section.10.1}%
+\contentsline {section}{\numberline {10.2}What Worked}{20}{section.10.2}%
+\contentsline {section}{\numberline {10.3}Evidence}{20}{section.10.3}%

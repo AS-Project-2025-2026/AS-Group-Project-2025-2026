@@ -21,6 +21,8 @@ A customer order flows from the storefront controllers in \texttt{Nop.Web} down 
 This works cleanly when nopCommerce owns the full picture. It breaks down when an external warehouse, POS, or carrier system owns part of the order's lifecycle and may be slow, unavailable, or return conflicting data.
 The internal event system is also worth noting. It publishes events in-process to registered consumers and awaits each one. If a consumer fails, the error is logged and execution continues. There is no message broker and no standard durable integration retry, replay, or dead-letter mechanism. This is fine for cache invalidation or plugin reactions — it is not sufficient for reliable integration with external systems.
 \section{What Already Works for Scenario C}
+The current implementation already provides several Scenario C-relevant capabilities inside the monolith: web checkout and order creation, a local stock and warehouse model, shipment and tracking records, customer/admin order visibility, and plugin or scheduled-task extension points.
+
 \subsection{Order Capture and Customer Visibility}
 nopCommerce has mature order management: customer accounts, checkout, payment status, order history, shipment tracking, admin screens, and notification emails. This gives Scenario C a solid foundation. The order placement workflow is a natural seam where an integration event like "order accepted for fulfillment" can be emitted — currently it only fires in-process, but extending it with a durable outbox is straightforward without touching checkout itself.
 \subsection{Inventory and Warehouse Model}

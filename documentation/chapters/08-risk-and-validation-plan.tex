@@ -1,1 +1,105 @@
 \chapter{Risk and Validation Plan}
+
+\section{Purpose}
+
+This chapter identifies the main architectural risks in evolving the current nopCommerce
+implementation into the Scenario C omnichannel commerce core described in the target
+architecture. The current implementation is treated as the baseline: nopCommerce already
+supports the customer-facing commerce flow, but the planned integration layer, adapters, retry
+metadata, reconciliation records, and operational visibility still need to be validated before
+they can be claimed as implemented architecture.
+
+The validation plan therefore focuses on the pressure required by the assignment: surrounding
+operational systems may be delayed, stale, unavailable, or contradictory, while the commerce core
+must remain useful and understandable.
+
+\section{Main Architectural Risks}
+
+\begingroup
+\small
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{center}
+\begin{tabular}{|p{0.30\textwidth}|p{0.39\textwidth}|p{0.22\textwidth}|}
+\hline
+\textbf{Risk} & \textbf{Why it matters} & \textbf{Related scenarios} \\
+\hline
+Surrounding systems are unavailable or delayed while checkout remains active &
+Warehouse or shipping failures must not cause paid orders to be lost or block later customers. &
+Availability under warehouse failure; recoverability after shipping outage \\
+\hline
+Inventory is stale or contradictory across online, store, and warehouse channels &
+The customer experience can become misleading if stock shown online no longer matches physical stock. &
+Consistency under stale inventory \\
+\hline
+Retry, replay, or idempotency is insufficient for asynchronous integration work &
+Failed integration work can be lost, repeated, or duplicated if durable retry and correlation are not designed carefully. &
+Availability; recoverability \\
+\hline
+Pending, degraded, failed, or recovered states are not visible to operators &
+A resilient system is still hard to operate if support teams cannot explain order or stock state to customers. &
+Availability; recoverability; observability \\
+\hline
+Integration work slows customer-facing operations &
+Omnichannel synchronization must not make checkout and order-status views depend on slow external systems. &
+Performance during omnichannel order bursts \\
+\hline
+Future adapters bypass boundaries or share the nopCommerce database &
+Direct coupling would make new channels harder to add and would weaken data ownership between systems. &
+Modifiability for new operational channels \\
+\hline
+\end{tabular}
+\end{center}
+\endgroup
+
+\section{Validation Activities}
+
+\begingroup
+\small
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{center}
+\begin{tabular}{|p{0.30\textwidth}|p{0.40\textwidth}|p{0.21\textwidth}|}
+\hline
+\textbf{Validation activity} & \textbf{What it proves} & \textbf{Evidence to collect} \\
+\hline
+Simulate a warehouse or shipping timeout during order processing &
+A paid order is persisted locally, marked as pending or degraded, and not lost when the external dependency fails. &
+Order screenshot, logs, retry record, timestamps \\
+\hline
+Simulate a delayed stock update from a store or warehouse system &
+The system can detect stale stock, expose the state, and create a reconciliation path instead of assuming immediate consistency. &
+Before and after stock views, discrepancy or reconciliation record \\
+\hline
+Verify retry, replay, and idempotency behavior for failed integration work &
+Repeated attempts do not create duplicate fulfillment or shipping actions, and failed work can be retried after recovery. &
+Retry attempts, correlation identifier, duplicate-prevention result \\
+\hline
+Verify support and operations visibility &
+Operators can distinguish normal, pending, degraded, failed, and recovered work without inspecting internal database tables. &
+Support or admin view screenshots, status transitions \\
+\hline
+Run a small order-burst check while background synchronization is active &
+Customer-facing checkout and order-status reads remain responsive while asynchronous work is queued or processed. &
+Latency measurements, queued work count, test notes \\
+\hline
+Review integration boundaries &
+Surrounding systems use adapters, APIs, or events and do not read or write the nopCommerce database directly. &
+Architecture review notes, code or configuration references \\
+\hline
+\end{tabular}
+\end{center}
+\endgroup
+
+\section{Feasibility Spike Focus}
+
+The feasibility spike should target the riskiest part of the target architecture: durable
+asynchronous order propagation from nopCommerce to a surrounding operational capability when that
+capability is slow or unavailable. The spike can use a simulator or stub for the warehouse or
+shipping dependency if a real system is not available.
+
+The spike should start from a placed order or an equivalent order-created event. The external
+adapter should then be made unavailable or slow. The expected result is that the commerce core
+keeps the order, records pending integration work, exposes a degraded or awaiting-confirmation
+state, and later retries successfully when the dependency recovers. Chapter 10 should contain the
+concrete implementation details and evidence for this spike.
