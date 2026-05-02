@@ -2,8 +2,394 @@
 
 \section{Domain Overview}
 
+Scenario C changes the role of nopCommerce from an online storefront into the commerce core
+of VerdeMart's wider omnichannel ecosystem. The domain is therefore not limited to product
+browsing and online checkout. It also includes fulfillment coordination, inventory visibility,
+store activity, shipping progress, support visibility, and recovery when surrounding systems are
+delayed, stale, unavailable, or contradictory.
+
+The current nopCommerce baseline already contains important domain concepts for this scenario.
+\texttt{Nop.Core} defines entities such as \texttt{Order}, \texttt{OrderItem},
+\texttt{Product}, \texttt{Warehouse}, and \texttt{Shipment}. It also includes warehouse
+inventory and stock history entities such as \texttt{ProductWarehouse\allowbreak Inventory}
+and \texttt{StockQuantity\allowbreak History}. \texttt{Nop.Services} contains the application
+logic around order placement, inventory adjustment, shipping, plugins, internal events, and
+scheduled tasks. \texttt{OrderProcessingService} persists the order, moves cart items into
+order items, adjusts inventory, sends notifications, and publishes an in-process
+\texttt{OrderPlacedEvent}. These are useful seams, but they are not yet a durable integration
+boundary for external warehouse, POS, shipping, or support systems.
+
+The target model keeps nopCommerce as the owner of the customer-facing commercial
+transaction. It does not decompose the monolith into many services. Instead, it defines
+explicit boundaries around the operational capabilities that surround the commerce core.
+Warehouse execution, store/POS stock changes, shipping-provider state, and support operations
+visibility must communicate through APIs, events, or adapters. They must not read or write the
+nopCommerce database directly.
+
+The main domain tension is ownership under imperfect information. nopCommerce can own the
+canonical web order, but it cannot assume that every external stock number, warehouse
+acknowledgement, or carrier update is immediately correct. The bounded contexts below make
+stale, pending, failed, retried, and reconciled states explicit so the system remains useful and
+explainable during degradation.
+
+\section{Relevant Subdomains}
+
+\begingroup
+\small
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{center}
+\begin{tabular}{|p{0.23\textwidth}|p{0.17\textwidth}|p{0.50\textwidth}|}
+\hline
+\textbf{Subdomain} & \textbf{Type} & \textbf{Description} \\
+\hline
+Customer commerce & Core & Product discovery, cart, checkout, payment result handling, customer order history, and the canonical web order. \\
+\hline
+Fulfillment coordination & Core / supporting & Propagates accepted orders to warehouse, store, ERP, and shipping capabilities through a durable target-state integration boundary. \\
+\hline
+Inventory availability & Supporting & Presents customer-facing availability using nopCommerce stock data and projected updates from warehouse and store/POS systems, including freshness and conflict state. \\
+\hline
+Warehouse fulfillment & External supporting & Owns picking, packing, dispatch preparation, fulfillment acknowledgement, and warehouse failure reasons. \\
+\hline
+Store operations / POS & External supporting & Owns in-store sale events, pickup activity, and local stock changes that must become visible again in the commerce experience. \\
+\hline
+Shipping & External generic & Owns label creation, carrier tracking updates, and carrier-specific failure responses. \\
+\hline
+Support and operations visibility & Supporting & Gives support agents and operators a view of pending, degraded, failed, retried, dead-lettered, and reconciled integration work. \\
+\hline
+\end{tabular}
+\end{center}
+\endgroup
+
 \section{Bounded Contexts}
+
+\subsection{nopCommerce Commerce Core Context}
+
+This context remains inside nopCommerce. It owns catalog presentation, customer accounts,
+shopping carts, checkout, payment result handling, order creation, and customer-facing order
+history. The current codebase already supports these responsibilities through the existing
+layered/onion structure: domain entities in \texttt{Nop.Core}, persistence through
+\texttt{Nop.Data}, business logic in \texttt{Nop.Services}, and web/admin presentation through
+\texttt{Nop.Web} and \texttt{Nop.Web.Framework}.
+
+For Scenario C, this context remains the system of record for the canonical web order. It may
+publish an order-accepted integration task in the target architecture, but it should not depend
+synchronously on warehouse, POS, or shipping providers during checkout. This supports
+availability and performance by keeping the customer request path separate from slow
+operational dependencies.
+
+\textbf{Owns:}
+\begin{itemize}
+    \item customer accounts, carts, checkout state, and payment result state;
+    \item canonical web orders and order items;
+    \item customer-facing order history and local order status;
+    \item local catalog and stock concepts already represented by \texttt{Product},
+    warehouse inventory records, and stock quantity history.
+\end{itemize}
+
+\textbf{Does not own:}
+\begin{itemize}
+    \item warehouse picking and packing execution;
+    \item POS sales ledgers or store stock ledgers;
+    \item carrier labels and carrier tracking source of truth;
+    \item target-state retry queues, dead-letter records, or reconciliation records for external integration.
+\end{itemize}
+
+\textbf{Boundary rule:} external systems may receive commands or events derived from
+nopCommerce orders, but they must not access nopCommerce tables directly.
+
+\subsection{Integration Coordination Context}
+
+This is a target-state context introduced around nopCommerce, not a complete capability in the
+current baseline. Its responsibility is to make communication with surrounding systems durable,
+observable, and recoverable. It owns integration messages or outbox-style tasks, correlation
+identifiers, retry attempts, idempotency keys, failure states, dead-letter records, and
+reconciliation records.
+
+The current in-process event publisher is useful inside the monolith, but it is not enough for
+reliable external integration because consumers run in the same process and failures are logged
+rather than retained as durable work. Scheduled tasks are a useful execution seam for polling,
+retry, timeout detection, or cleanup, but the target architecture still needs explicit
+integration state to know what is pending, duplicated, failed, or recovered.
+
+\textbf{Owns:}
+\begin{itemize}
+    \item target-state integration messages, outbox-style tasks, and delivery status;
+    \item correlation identifiers linking a web order to warehouse, shipping, inventory, and support records;
+    \item idempotency keys to prevent duplicate fulfillment or label creation during retries;
+    \item retry, dead-letter, timeout, and reconciliation state.
+\end{itemize}
+
+\textbf{Does not own:}
+\begin{itemize}
+    \item the canonical web order;
+    \item warehouse operational execution;
+    \item carrier tracking source of truth;
+    \item POS sales.
+\end{itemize}
+
+\textbf{Boundary rule:} every external integration must pass through an adapter, API, or event
+contract. Shared database access is not an allowed shortcut.
+
+\subsection{Warehouse Fulfillment Context}
+
+This context represents the warehouse execution capability in Scenario C. It owns physical
+fulfillment state such as accepted for picking, picked, packed, delayed, failed, ready for
+dispatch, and warehouse acknowledgement. nopCommerce already has \texttt{Warehouse},
+warehouse inventory, and shipment-related concepts, but the current baseline does not model a
+separate WMS lifecycle such as ``sent to warehouse'', ``warehouse delayed'', or
+``fulfillment rejected''.
+
+In the target architecture, nopCommerce sends a fulfillment request asynchronously after order
+acceptance. The commerce core then receives a projection of warehouse state for customer,
+admin, and support visibility. This supports availability and recoverability because a slow or
+unavailable warehouse does not block checkout and can be retried or reconciled later.
+
+\textbf{Owns:}
+\begin{itemize}
+    \item picking, packing, dispatch preparation, and warehouse failure reasons;
+    \item warehouse acknowledgement or rejection of fulfillment work;
+    \item warehouse-side timing and operational exceptions.
+\end{itemize}
+
+\textbf{Typical target-state messages:}
+\begin{itemize}
+    \item \texttt{FulfillmentRequested};
+    \item \texttt{FulfillmentAccepted};
+    \item \texttt{OrderPicked} or \texttt{OrderPacked};
+    \item \texttt{FulfillmentDelayed} or \texttt{FulfillmentFailed}.
+\end{itemize}
+
+\subsection{Inventory Availability Context}
+
+This context provides cross-channel stock visibility for the web storefront, checkout,
+operators, and support agents. The baseline nopCommerce product model includes stock quantity,
+multiple-warehouse inventory records, reserved quantity, and stock history. These records are a
+strong starting point, but they do not distinguish fresh external stock from stale external
+stock, nor do they record contradictory source-system claims as first-class business states.
+
+The target context treats inventory as a projection that includes source and freshness metadata.
+Warehouse and store/POS systems may report changes at different times. The web storefront may
+therefore show stock that is temporarily stale. Instead of hiding this as a technical problem,
+the model exposes states such as \texttt{InventoryStale} and
+\texttt{ReconciliationRequired}. This supports consistency by making inconsistency visible and
+recoverable rather than pretending all channels are immediately consistent.
+
+\textbf{Owns:}
+\begin{itemize}
+    \item customer-facing availability projections;
+    \item source, last-confirmed time, stale-state, and conflict-state metadata in the target model;
+    \item inventory discrepancy and reconciliation records.
+\end{itemize}
+
+\textbf{Does not own:}
+\begin{itemize}
+    \item every physical stock movement in the warehouse or store;
+    \item internal POS sale accounting;
+    \item the canonical web order.
+\end{itemize}
+
+\subsection{Shipping Context}
+
+This context represents shipping-provider or carrier integration. The baseline already has
+\texttt{Shipment}, tracking number, shipped date, delivered date, ready-for-pickup date,
+shipping plugins, and admin shipment operations. These support the target architecture, but
+they do not by themselves provide a durable label-request workflow with retry, idempotency, and
+provider-outage state.
+
+In the target architecture, label creation and tracking updates are handled through a shipping
+adapter or provider API. If the provider is unavailable, the request remains pending or failed
+in the integration coordination context and is retried after recovery. nopCommerce may display
+shipping progress as a projection, while the carrier remains the owner of carrier-specific
+tracking state.
+
+\textbf{Owns:}
+\begin{itemize}
+    \item carrier label creation and label failures;
+    \item carrier tracking updates;
+    \item provider-specific shipping errors.
+\end{itemize}
+
+\textbf{Typical target-state messages:} \texttt{ShipmentReadyForLabel},
+\texttt{LabelCreationRequested}, \texttt{LabelCreated}, \texttt{LabelCreationFailed}, and
+\texttt{TrackingUpdated}.
+
+\subsection{Store Operations / POS Context}
+
+This context represents physical store activity. nopCommerce already supports pickup-in-store
+concepts through order and shipment fields and the pickup plugin, but a full POS system remains
+outside the current baseline. In Scenario C, the POS/store context owns in-store sale events,
+store stock changes, pickup readiness, and pickup completion.
+
+The important boundary is that the POS does not update nopCommerce inventory tables directly.
+It publishes or exposes store events through an adapter. The inventory availability context can
+then update the commerce-facing projection, and the support context can expose any stale or
+conflicting state.
+
+\textbf{Owns:}
+\begin{itemize}
+    \item POS sale events and local store stock changes;
+    \item pickup readiness and pickup completion events;
+    \item store-side operational exceptions.
+\end{itemize}
+
+\textbf{Does not own:}
+\begin{itemize}
+    \item online checkout;
+    \item canonical web order creation;
+    \item nopCommerce database tables.
+\end{itemize}
+
+\subsection{Support and Operations Context}
+
+This context gives operators and support agents visibility into omnichannel state. The current
+nopCommerce admin area already exposes orders, shipments, warehouses, stock history, plugins,
+and scheduled tasks. The target architecture extends this with operational read models for
+integration state: pending, retrying, delayed, failed, dead-lettered, recovered, and requiring
+reconciliation.
+
+This context matters because a resilient integration is still operationally weak if people
+cannot explain what happened to an order or stock change. Degraded states are therefore part of
+the business model, not only log messages.
+
+\textbf{Owns:}
+\begin{itemize}
+    \item operational status views and support-facing explanations;
+    \item failure visibility, retry history, and reconciliation actions;
+    \item audit trail of cross-boundary integration attempts in the target model.
+\end{itemize}
+
+\textbf{Does not own:}
+\begin{itemize}
+    \item warehouse, store, or shipping execution;
+    \item the canonical web order;
+    \item external stock or carrier ledgers.
+\end{itemize}
 
 \section{Responsibilities}
 
+\begingroup
+\small
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{center}
+\begin{tabular}{|p{0.22\textwidth}|p{0.35\textwidth}|p{0.33\textwidth}|}
+\hline
+\textbf{Bounded context} & \textbf{Primary responsibilities} & \textbf{Key data owned} \\
+\hline
+nopCommerce Commerce Core & Catalog presentation, cart, checkout, payment result handling, canonical order creation, customer/admin order visibility. & Customers, carts, checkout state, payment result state, canonical web orders, order items, local stock records. \\
+\hline
+Integration Coordination & Target-state durable communication, retry, idempotency, correlation, failure state, dead-letter handling, and reconciliation. & Integration messages, correlation IDs, retry attempts, idempotency keys, failure and reconciliation records. \\
+\hline
+Warehouse Fulfillment & Picking, packing, dispatch preparation, fulfillment acknowledgement, warehouse delay or failure reporting. & Warehouse fulfillment state, warehouse acknowledgement, picking and packing status. \\
+\hline
+Inventory Availability & Cross-channel availability projection, source and freshness metadata, stale-state detection, conflict detection, reconciliation. & Availability projection, stock-source metadata, freshness state, discrepancy records. \\
+\hline
+Shipping & Label creation, carrier tracking updates, provider error reporting. & Label request state, tracking number, carrier status, provider error state. \\
+\hline
+Store Operations / POS & Store sales, in-store stock changes, pickup readiness, pickup completion. & POS sale events, store stock events, pickup events. \\
+\hline
+Support and Operations & Operational visibility, degraded-state explanation, retry monitoring, reconciliation monitoring. & Operational read model, failure records, status transition history, integration audit trail. \\
+\hline
+\end{tabular}
+\end{center}
+\endgroup
+
+\section{Boundary Model}
+
+\begingroup
+\small
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{center}
+\begin{tabular}{|p{0.25\textwidth}|p{0.16\textwidth}|p{0.24\textwidth}|p{0.25\textwidth}|}
+\hline
+\textbf{Boundary} & \textbf{Direction} & \textbf{Interaction style} & \textbf{Reason} \\
+\hline
+Customer/admin to nopCommerce & Inbound & Synchronous & Browsing, checkout, and order visibility require immediate responses. \\
+\hline
+nopCommerce to integration coordination & Outbound & Asynchronous target-state event or task & Order propagation must survive warehouse or shipping delay without blocking checkout. \\
+\hline
+Integration coordination to warehouse adapter & Outbound & Async command/API call with retry & Fulfillment requests may be delayed or unavailable and must remain recoverable. \\
+\hline
+Warehouse adapter to integration coordination & Inbound & Event/callback/poll result & Picked, packed, delayed, failed, or accepted state must become visible. \\
+\hline
+Store/POS to inventory adapter & Inbound & Event/API update & Store stock changes should update availability without direct database coupling. \\
+\hline
+Integration coordination to shipping adapter & Outbound & Async command/API call with retry & Label creation and carrier calls can fail and must be idempotent. \\
+\hline
+Integration coordination to support view & Internal & Read model/projection & Operators need visibility into pending, degraded, failed, and recovered work. \\
+\hline
+\end{tabular}
+\end{center}
+\endgroup
+
+\section{Boundary Rules}
+
+\begin{enumerate}
+    \item \textbf{nopCommerce owns the canonical web order.} External systems may receive
+    order commands or events, but they do not become the source of truth for the web order.
+
+    \item \textbf{No external system reads or writes the nopCommerce database directly.} This
+    keeps the monolith's database internal and avoids hidden coupling across service
+    boundaries.
+
+    \item \textbf{Checkout does not synchronously depend on warehouse, POS, or shipping.}
+    External work is recorded and processed asynchronously in the target architecture.
+
+    \item \textbf{External operational state is projected back into the commerce experience.}
+    Fulfillment status, shipping status, and stock availability can be shown to customers,
+    administrators, or support agents, but they are projections with source and freshness
+    metadata where needed.
+
+    \item \textbf{Every cross-boundary message needs correlation and idempotency.} This
+    prevents duplicate fulfillment or duplicate label creation when retries happen after
+    timeout, failure, or uncertain acknowledgement.
+
+    \item \textbf{Degraded states are domain states.} States such as pending warehouse
+    confirmation, warehouse delay, awaiting shipping label, stale inventory, and reconciliation
+    required should be visible to the appropriate customer, support, or operator view rather than
+    hidden only in logs.
+
+    \item \textbf{Adapters translate external language into internal language.} Warehouse,
+    POS, ERP, and carrier terms should not leak directly into the core order model.
+\end{enumerate}
+
 \section{Architecture Diagram}
+
+The following textual diagram summarizes the boundary model without introducing additional
+diagramming dependencies into the report:
+
+\begin{center}
+\begin{tabular}{c}
+\hline
+Customer / Admin synchronous storefront and admin interactions \\
+\hline
+$\downarrow$ \\
+\hline
+nopCommerce Commerce Core \\
+\texttt{Order}, \texttt{OrderItem}, \texttt{Product}, \texttt{Shipment}, checkout, payments, canonical web order \\
+\hline
+$\downarrow$ asynchronous target-state events or integration tasks \\
+\hline
+Integration Coordination Context \\
+correlation, idempotency, retry, dead-letter, degraded state, reconciliation \\
+\hline
+$\downarrow$ adapters/APIs/events, no shared database \\
+\hline
+Warehouse Fulfillment \quad Inventory Availability \quad Shipping \quad Store/POS \\
+\hline
+$\downarrow$ projections and operational status \\
+\hline
+Support and Operations Visibility \\
+\hline
+\end{tabular}
+\end{center}
+
+This model is traceable to the quality attributes in Chapter 4. Availability is supported by
+accepting and persisting web orders without synchronously requiring the warehouse or shipping
+provider. Consistency is handled by explicit stale and conflicting inventory states rather than
+by assuming immediate agreement across channels. Performance is protected by keeping slow
+integration work outside the checkout request path. Recoverability is supported by retry,
+idempotency, correlation, and reconciliation in the target integration context. Modifiability is
+supported by adapters and by forbidding shared database access across external boundaries.
