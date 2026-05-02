@@ -19,52 +19,62 @@
 \contentsline {section}{\numberline {2.6}What This Means for the Target Architecture}{5}{section.2.6}%
 \contentsline {chapter}{\numberline {3}Domain and Bounded Contexts}{6}{chapter.3}%
 \contentsline {section}{\numberline {3.1}Domain Overview}{6}{section.3.1}%
-\contentsline {section}{\numberline {3.2}Bounded Contexts}{6}{section.3.2}%
-\contentsline {section}{\numberline {3.3}Responsibilities}{6}{section.3.3}%
-\contentsline {section}{\numberline {3.4}Architecture Diagram}{6}{section.3.4}%
-\contentsline {chapter}{\numberline {4}Quality Attribute Scenarios}{7}{chapter.4}%
-\contentsline {section}{\numberline {4.1}Architectural Drivers}{7}{section.4.1}%
-\contentsline {section}{\numberline {4.2}Scenario 1 - Availability under Warehouse Failure}{7}{section.4.2}%
-\contentsline {section}{\numberline {4.3}Scenario 2 - Consistency under Stale Inventory}{8}{section.4.3}%
-\contentsline {section}{\numberline {4.4}Scenario 3 - Performance during Omnichannel Order Bursts}{8}{section.4.4}%
-\contentsline {section}{\numberline {4.5}Scenario 4 - Recoverability after Shipping Outage}{9}{section.4.5}%
-\contentsline {section}{\numberline {4.6}Scenario 5 - Modifiability for New Operational Channels}{9}{section.4.6}%
-\contentsline {section}{\numberline {4.7}Traceability to Architectural Drivers}{10}{section.4.7}%
-\contentsline {chapter}{\numberline {5}Architectural Approach}{11}{chapter.5}%
-\contentsline {section}{\numberline {5.1}Chosen Framework}{11}{section.5.1}%
-\contentsline {section}{\numberline {5.2}Justification}{11}{section.5.2}%
-\contentsline {section}{\numberline {5.3}Why Not ACDM or ADM as the Main Framework}{12}{section.5.3}%
-\contentsline {section}{\numberline {5.4}How ADD Shapes the Target Architecture}{12}{section.5.4}%
-\contentsline {chapter}{\numberline {6}Target Architecture}{13}{chapter.6}%
-\contentsline {section}{\numberline {6.1}Overview}{13}{section.6.1}%
-\contentsline {section}{\numberline {6.2}Main Components and Services}{13}{section.6.2}%
-\contentsline {section}{\numberline {6.3}Synchronous and Asynchronous Interactions}{14}{section.6.3}%
-\contentsline {section}{\numberline {6.4}Data Ownership}{14}{section.6.4}%
-\contentsline {section}{\numberline {6.5}Cross-Cutting Concerns}{14}{section.6.5}%
-\contentsline {section}{\numberline {6.6}Main Architecture Diagram}{15}{section.6.6}%
-\contentsline {chapter}{\numberline {7}Architectural Decisions}{16}{chapter.7}%
-\contentsline {section}{\numberline {7.1}ADR 1 - XXX}{16}{section.7.1}%
-\contentsline {subsection}{\numberline {7.1.1}Context}{16}{subsection.7.1.1}%
-\contentsline {subsection}{\numberline {7.1.2}Decision}{16}{subsection.7.1.2}%
-\contentsline {subsection}{\numberline {7.1.3}Alternatives Considered}{16}{subsection.7.1.3}%
-\contentsline {subsection}{\numberline {7.1.4}Consequences}{16}{subsection.7.1.4}%
-\contentsline {section}{\numberline {7.2}ADR 2 - XXX}{16}{section.7.2}%
-\contentsline {subsection}{\numberline {7.2.1}Context}{16}{subsection.7.2.1}%
-\contentsline {subsection}{\numberline {7.2.2}Decision}{16}{subsection.7.2.2}%
-\contentsline {subsection}{\numberline {7.2.3}Alternatives Considered}{16}{subsection.7.2.3}%
-\contentsline {subsection}{\numberline {7.2.4}Consequences}{16}{subsection.7.2.4}%
-\contentsline {section}{\numberline {7.3}ADR 3 - XXX}{16}{section.7.3}%
-\contentsline {subsection}{\numberline {7.3.1}Context}{16}{subsection.7.3.1}%
-\contentsline {subsection}{\numberline {7.3.2}Decision}{16}{subsection.7.3.2}%
-\contentsline {subsection}{\numberline {7.3.3}Alternatives Considered}{16}{subsection.7.3.3}%
-\contentsline {subsection}{\numberline {7.3.4}Consequences}{16}{subsection.7.3.4}%
-\contentsline {chapter}{\numberline {8}Risk and Validation Plan}{17}{chapter.8}%
-\contentsline {section}{\numberline {8.1}Purpose}{17}{section.8.1}%
-\contentsline {section}{\numberline {8.2}Main Architectural Risks}{17}{section.8.2}%
-\contentsline {section}{\numberline {8.3}Validation Activities}{18}{section.8.3}%
-\contentsline {section}{\numberline {8.4}Feasibility Spike Focus}{18}{section.8.4}%
-\contentsline {chapter}{\numberline {9}Evolution Roadmap}{19}{chapter.9}%
-\contentsline {chapter}{\numberline {10}Feasibility Spike}{20}{chapter.10}%
-\contentsline {section}{\numberline {10.1}What Was Tested}{20}{section.10.1}%
-\contentsline {section}{\numberline {10.2}What Worked}{20}{section.10.2}%
-\contentsline {section}{\numberline {10.3}Evidence}{20}{section.10.3}%
+\contentsline {section}{\numberline {3.2}Relevant Subdomains}{7}{section.3.2}%
+\contentsline {section}{\numberline {3.3}Bounded Contexts}{7}{section.3.3}%
+\contentsline {subsection}{\numberline {3.3.1}nopCommerce Commerce Core Context}{7}{subsection.3.3.1}%
+\contentsline {subsection}{\numberline {3.3.2}Integration Coordination Context}{8}{subsection.3.3.2}%
+\contentsline {subsection}{\numberline {3.3.3}Warehouse Fulfillment Context}{8}{subsection.3.3.3}%
+\contentsline {subsection}{\numberline {3.3.4}Inventory Availability Context}{9}{subsection.3.3.4}%
+\contentsline {subsection}{\numberline {3.3.5}Shipping Context}{9}{subsection.3.3.5}%
+\contentsline {subsection}{\numberline {3.3.6}Store Operations / POS Context}{10}{subsection.3.3.6}%
+\contentsline {subsection}{\numberline {3.3.7}Support and Operations Context}{10}{subsection.3.3.7}%
+\contentsline {section}{\numberline {3.4}Responsibilities}{11}{section.3.4}%
+\contentsline {section}{\numberline {3.5}Boundary Model}{11}{section.3.5}%
+\contentsline {section}{\numberline {3.6}Boundary Rules}{12}{section.3.6}%
+\contentsline {section}{\numberline {3.7}Architecture Diagram}{12}{section.3.7}%
+\contentsline {chapter}{\numberline {4}Quality Attribute Scenarios}{13}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Architectural Drivers}{13}{section.4.1}%
+\contentsline {section}{\numberline {4.2}Scenario 1 - Availability under Warehouse Failure}{13}{section.4.2}%
+\contentsline {section}{\numberline {4.3}Scenario 2 - Consistency under Stale Inventory}{14}{section.4.3}%
+\contentsline {section}{\numberline {4.4}Scenario 3 - Performance during Omnichannel Order Bursts}{14}{section.4.4}%
+\contentsline {section}{\numberline {4.5}Scenario 4 - Recoverability after Shipping Outage}{15}{section.4.5}%
+\contentsline {section}{\numberline {4.6}Scenario 5 - Modifiability for New Operational Channels}{15}{section.4.6}%
+\contentsline {section}{\numberline {4.7}Traceability to Architectural Drivers}{16}{section.4.7}%
+\contentsline {chapter}{\numberline {5}Architectural Approach}{17}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Chosen Framework}{17}{section.5.1}%
+\contentsline {section}{\numberline {5.2}Justification}{17}{section.5.2}%
+\contentsline {section}{\numberline {5.3}Why Not ACDM or ADM as the Main Framework}{18}{section.5.3}%
+\contentsline {section}{\numberline {5.4}How ADD Shapes the Target Architecture}{18}{section.5.4}%
+\contentsline {chapter}{\numberline {6}Target Architecture}{19}{chapter.6}%
+\contentsline {section}{\numberline {6.1}Overview}{19}{section.6.1}%
+\contentsline {section}{\numberline {6.2}Main Components and Services}{19}{section.6.2}%
+\contentsline {section}{\numberline {6.3}Synchronous and Asynchronous Interactions}{20}{section.6.3}%
+\contentsline {section}{\numberline {6.4}Data Ownership}{20}{section.6.4}%
+\contentsline {section}{\numberline {6.5}Cross-Cutting Concerns}{20}{section.6.5}%
+\contentsline {section}{\numberline {6.6}Main Architecture Diagram}{21}{section.6.6}%
+\contentsline {chapter}{\numberline {7}Architectural Decisions}{22}{chapter.7}%
+\contentsline {section}{\numberline {7.1}ADR 1 - XXX}{22}{section.7.1}%
+\contentsline {subsection}{\numberline {7.1.1}Context}{22}{subsection.7.1.1}%
+\contentsline {subsection}{\numberline {7.1.2}Decision}{22}{subsection.7.1.2}%
+\contentsline {subsection}{\numberline {7.1.3}Alternatives Considered}{22}{subsection.7.1.3}%
+\contentsline {subsection}{\numberline {7.1.4}Consequences}{22}{subsection.7.1.4}%
+\contentsline {section}{\numberline {7.2}ADR 2 - XXX}{22}{section.7.2}%
+\contentsline {subsection}{\numberline {7.2.1}Context}{22}{subsection.7.2.1}%
+\contentsline {subsection}{\numberline {7.2.2}Decision}{22}{subsection.7.2.2}%
+\contentsline {subsection}{\numberline {7.2.3}Alternatives Considered}{22}{subsection.7.2.3}%
+\contentsline {subsection}{\numberline {7.2.4}Consequences}{22}{subsection.7.2.4}%
+\contentsline {section}{\numberline {7.3}ADR 3 - XXX}{22}{section.7.3}%
+\contentsline {subsection}{\numberline {7.3.1}Context}{22}{subsection.7.3.1}%
+\contentsline {subsection}{\numberline {7.3.2}Decision}{22}{subsection.7.3.2}%
+\contentsline {subsection}{\numberline {7.3.3}Alternatives Considered}{22}{subsection.7.3.3}%
+\contentsline {subsection}{\numberline {7.3.4}Consequences}{22}{subsection.7.3.4}%
+\contentsline {chapter}{\numberline {8}Risk and Validation Plan}{23}{chapter.8}%
+\contentsline {section}{\numberline {8.1}Purpose}{23}{section.8.1}%
+\contentsline {section}{\numberline {8.2}Main Architectural Risks}{23}{section.8.2}%
+\contentsline {section}{\numberline {8.3}Validation Activities}{24}{section.8.3}%
+\contentsline {section}{\numberline {8.4}Feasibility Spike Focus}{24}{section.8.4}%
+\contentsline {chapter}{\numberline {9}Evolution Roadmap}{25}{chapter.9}%
+\contentsline {chapter}{\numberline {10}Feasibility Spike}{26}{chapter.10}%
+\contentsline {section}{\numberline {10.1}What Was Tested}{26}{section.10.1}%
+\contentsline {section}{\numberline {10.2}What Worked}{26}{section.10.2}%
+\contentsline {section}{\numberline {10.3}Evidence}{26}{section.10.3}%
