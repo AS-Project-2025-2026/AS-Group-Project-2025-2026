@@ -10,12 +10,13 @@ stimulus, artifact, environment, response, and response measure.
 
 \section{Architectural Drivers}
 
-The scenarios are driven by four architectural concerns:
+The scenarios are driven by five architectural concerns:
 
 \begin{itemize}
     \item \textbf{Availability:} web orders must not be lost when warehouse or shipping systems fail.
-    \item \textbf{Consistency:} inventory and order state may be temporarily stale, but inconsistencies must be visible and recoverable.
+    \item \textbf{Consistency:} inventory and order state may be temporarily stale or contradictory, but inconsistencies must be visible and recoverable.
     \item \textbf{Performance:} customer-facing operations must stay responsive during backend synchronization and sales peaks.
+    \item \textbf{Recoverability:} failed integration work must be retained, retried, and resolved without operator intervention where possible.
     \item \textbf{Modifiability:} new operational channels must be integrated without rewriting checkout or sharing the nopCommerce database.
 \end{itemize}
 
@@ -36,9 +37,9 @@ Artifact & Fulfillment synchronization and the order status view shown to custom
 \hline
 Environment & Friday afternoon peak traffic, with 3 times normal order volume, while the warehouse dependency is degraded but the web shop is still accepting orders \\
 \hline
-Response & The order is accepted and persisted locally; the fulfillment request is stored for asynchronous retry; the order is shown as awaiting warehouse confirmation; subsequent orders are not blocked by the degraded dependency. \\
+Response & The order is accepted and persisted locally; the fulfillment request is stored in the outbox for asynchronous retry; the order is shown as awaiting warehouse confirmation; subsequent orders are not blocked by the degraded dependency. \\
 \hline
-Response measure & No paid order is lost; no duplicate fulfillment request is sent; pending fulfillment state is visible to support within 30 seconds; retry or escalation starts within 5 minutes. \\
+Response measure & No paid order is lost; no duplicate fulfillment request is sent on retry (idempotency key check); pending fulfillment state is visible to support within 30 seconds; the first retry attempt starts within 5 minutes. \\
 \hline
 \end{tabular}
 \end{center}
@@ -52,7 +53,7 @@ Response measure & No paid order is lost; no duplicate fulfillment request is se
 \hline
 \textbf{Part} & \textbf{VerdeMart scenario} \\
 \hline
-Stimulus source & Store point-of-sale system and warehouse stock service \\
+Stimulus source & Store point-of-sale system \\
 \hline
 Stimulus & A store sale reduces stock by 5 units, but the update reaches nopCommerce 3 minutes after the web catalog still showed those units as available. \\
 \hline
@@ -60,9 +61,9 @@ Artifact & Inventory availability view used by product pages, cart validation, a
 \hline
 Environment & Concurrent web and physical-store sales for the same product during a promotion, with external stock updates delayed by up to 3 minutes \\
 \hline
-Response & The commerce core marks stock data as stale, revalidates stock before checkout completion, preserves already-created orders for reconciliation, and records an inventory discrepancy for recovery. \\
+Response & The commerce core detects that the stock record has exceeded its staleness threshold, marks it stale, revalidates stock before checkout completion, and records an inventory discrepancy for reconciliation. \\
 \hline
-Response measure & Product pages show stale stock status within 30 seconds of detection; overselling stays under 1\% of affected order lines; inventory discrepancies are queued for reconciliation within 1 minute. \\
+Response measure & Product pages show stale stock status within 30 seconds of the staleness threshold being exceeded; overselling stays under 1\% of affected order lines; inventory discrepancies are queued for reconciliation within 1 minute. \\
 \hline
 \end{tabular}
 \end{center}
@@ -84,7 +85,7 @@ Artifact & Storefront, checkout path, order status view, and integration event p
 \hline
 Environment & Peak campaign period, with 5 times normal traffic and background synchronization still running \\
 \hline
-Response & The system prioritizes checkout writes, serves order-status reads from a projection, and processes warehouse and shipping synchronization asynchronously without blocking the customer request path. \\
+Response & The system prioritizes checkout writes, serves order-status reads from a local projection, and processes warehouse and shipping synchronization asynchronously without blocking the customer request path. \\
 \hline
 Response measure & Checkout p95 latency remains below 2 seconds; order-status read p95 remains below 1 second; at least 99\% of integration events are published or queued within 60 seconds. \\
 \hline
@@ -100,17 +101,17 @@ Response measure & Checkout p95 latency remains below 2 seconds; order-status re
 \hline
 \textbf{Part} & \textbf{VerdeMart scenario} \\
 \hline
-Stimulus source & Shipping provider or shipping adapter \\
+Stimulus source & Shipping provider \\
 \hline
-Stimulus & Shipment label creation fails for 50 ready-to-dispatch orders and later becomes available again. \\
+Stimulus & Shipment label creation fails for 50 ready-to-dispatch orders and the provider later becomes available again. \\
 \hline
 Artifact & Shipping integration workflow, retry queue, and order shipment status \\
 \hline
 Environment & Warehouse has packed orders, but the external shipping provider is unavailable for 20 minutes \\
 \hline
-Response & The system stores failed label requests, keeps orders in a clear awaiting-shipping state, avoids repeated synchronous calls from operators, and resumes processing automatically when the provider recovers. \\
+Response & The system stores failed label requests in the retry queue, keeps orders in a clear awaiting-shipping state, and resumes label creation automatically when the provider recovers without requiring operator re-submission. \\
 \hline
-Response measure & 100\% of failed label requests are retained; operators see the outage state within 30 seconds; 95\% of queued labels are created within 10 minutes after provider recovery. \\
+Response measure & 100\% of failed label requests are retained in the retry queue; operators see the outage state within 30 seconds; 95\% of queued labels are created within 10 minutes after provider recovery. \\
 \hline
 \end{tabular}
 \end{center}
@@ -134,27 +135,58 @@ Environment & Existing web, warehouse, and shipping integrations are already in 
 \hline
 Response & The architecture allows the new channel to be added through a new adapter and event subscription without changing checkout logic or sharing the nopCommerce database with the external system. \\
 \hline
-Response measure & The new integration requires changes in no more than one adapter and one application-service boundary; no direct external database access is introduced; regression tests for checkout and existing integrations remain green. \\
+Response measure & The new integration requires changes in no more than one adapter and one application-service boundary; no direct external database access is introduced; existing integration flows for warehouse and shipping are unaffected. \\
 \hline
 \end{tabular}
 \end{center}
 
-\section{Traceability to Architectural Drivers}
+\section{Scenario 6 --- Inventory Reconciliation after Cross-Channel Conflict}
+
+\textbf{Driver:} Consistency under contradictory external state.
 
 \begin{center}
-\begin{tabular}{|p{0.48\textwidth}|p{0.38\textwidth}|}
+\begin{tabular}{|p{0.28\textwidth}|p{0.62\textwidth}|}
 \hline
-\textbf{Scenario} & \textbf{Architectural driver} \\
+\textbf{Part} & \textbf{VerdeMart scenario} \\
 \hline
-Availability under warehouse failure & Availability, recoverability \\
+Stimulus source & POS system and warehouse management system \\
 \hline
-Consistency under stale inventory & Consistency \\
+Stimulus & POS reports 8 units in stock; WMS reports 3 units for the same SKU. The difference exceeds the configured tolerance of 2 units and persists for more than 5 minutes. \\
 \hline
-Performance during omnichannel order bursts & Performance \\
+Artifact & Inventory Availability context, reconciliation record, and operator view in the Support and Operations area \\
 \hline
-Recoverability after shipping outage & Recoverability, availability \\
+Environment & Concurrent web and in-store activity for a promoted product; both systems are online but reporting contradictory quantities \\
 \hline
-Modifiability for new operational channels & Modifiability \\
+Response & The system detects the discrepancy, sets \texttt{ConflictFlag} on the affected SKU, limits checkout commits for that SKU to the lower reported quantity, and creates an operator-visible reconciliation task. \\
+\hline
+Response measure & Conflict is detected and flagged within 30 seconds of the divergence exceeding the tolerance; checkout is bounded by the lower reported quantity; the reconciliation task is visible to operators within 1 minute; if both sources agree within 30 minutes the flag is cleared automatically, otherwise operator action is required. \\
 \hline
 \end{tabular}
 \end{center}
+
+\section{Traceability to Architectural Drivers and Decisions}
+
+\begingroup
+\small
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{center}
+\begin{tabular}{|p{0.32\textwidth}|p{0.24\textwidth}|p{0.32\textwidth}|}
+\hline
+\textbf{Scenario} & \textbf{Architectural driver} & \textbf{Addressed by} \\
+\hline
+Availability under warehouse failure & Availability, recoverability & ADR 1 (async fulfillment), ADR 2 (outbox) \\
+\hline
+Consistency under stale inventory & Consistency & ADR 3 (adapter boundaries), inventory freshness metadata \\
+\hline
+Performance during omnichannel order bursts & Performance & ADR 1 (async path), ADR 4 (monolith retained) \\
+\hline
+Recoverability after shipping outage & Recoverability, availability & ADR 2 (outbox), ADR 6 (retry policy), ADR 7 (dead-letter) \\
+\hline
+Modifiability for new operational channels & Modifiability & ADR 3 (adapter, no shared DB) \\
+\hline
+Inventory reconciliation after conflict & Consistency & ADR 3 (adapter boundaries), inventory conflict and reconciliation model \\
+\hline
+\end{tabular}
+\end{center}
+\endgroup
