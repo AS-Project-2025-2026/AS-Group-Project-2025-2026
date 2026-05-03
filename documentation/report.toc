@@ -91,6 +91,9 @@
 \contentsline {subsection}{\numberline {9.1.3}Phase 3 — Inventory Projection and Stale-State Visibility}{38}{subsection.9.1.3}%
 \contentsline {subsection}{\numberline {9.1.4}Phase 4 — Operational Visibility}{38}{subsection.9.1.4}%
 \contentsline {chapter}{\numberline {10}Feasibility Spike}{39}{chapter.10}%
-\contentsline {section}{\numberline {10.1}What Was Tested}{39}{section.10.1}%
-\contentsline {section}{\numberline {10.2}What Worked}{39}{section.10.2}%
-\contentsline {section}{\numberline {10.3}Evidence}{39}{section.10.3}%
+\contentsline {section}{\numberline {10.1}Purpose}{39}{section.10.1}%
+\contentsline {section}{\numberline {10.2}What Was Tested}{39}{section.10.2}%
+\contentsline {section}{\numberline {10.3}What Worked}{40}{section.10.3}%
+\contentsline {section}{\numberline {10.4}What Did Not Work Yet}{40}{section.10.4}%
+\contentsline {section}{\numberline {10.5}Evidence}{41}{section.10.5}%
+\contentsline {section}{\numberline {10.6}Smallest Implementation Slice for the Final Demo}{41}{section.10.6}%

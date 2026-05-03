@@ -1,5 +1,5 @@
 # Fdb version 4
-["pdflatex"] 1777837680.80128 "report.tex" "report.pdf" "report" 1777837681.69477 0
+["pdflatex"] 1777838609.30842 "report.tex" "report.pdf" "report" 1777838610.20293 0
   "/etc/texmf/web2c/texmf.cnf" 1765277209.9037 475 c0e671620eb5563b2130f56340a5fde8 ""
   "/usr/share/texlive/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/jknappen/ec/ecrm1095.tfm" 1136768653 3584 929cdff2b7a8c11bd4d49fd68cb0ae70 ""
@@ -113,16 +113,16 @@
   "chapters/07-architectural-decisions.tex" 1777837051.15818 22373 fe078a9eb7431a2b60c11ee89e99a7a8 ""
   "chapters/08-risk-and-validation-plan.tex" 1777837051.15818 6361 5857817e56fa53ce0b6b2a521ba04db2 ""
   "chapters/09-evolution-roadmap.tex" 1777837051.15818 3652 19416c81ef616f000ce73def66d9c944 ""
-  "chapters/10-feasibility-spike.tex" 1777739118.59967 98 c888d57fdbe7a112f945dd70e32686d5 ""
+  "chapters/10-feasibility-spike.tex" 1777838604.49172 7949 bb346571af4eb0c7969df16645bbe5c6 ""
   "images/boundary_model.png" 1777837578.61231 489056 01fbb56969166b7e884392c88123bfc1 ""
   "images/evolution-roadmap.png" 1777837051.16036 108439 e8ee3230e32493f110c2e6211871785a ""
   "images/image.png" 1777837051.16073 134125 0ef0d81f9ff1e09e46ec561bc9d52948 ""
   "images/nopCommerceArchitecture.png" 1777739118.60083 56374 c9e3176df57a0ec87ab03d42c466d37b ""
   "images/ualogo.png" 1777739118.60183 43411 9a919fc319605cd52cbffa5e627844c0 ""
-  "report.aux" 1777837681.64509 14813 d1bdd7342746f960f1297aa80802fcdd "pdflatex"
-  "report.out" 1777837681.64662 18507 b0bf88fbe54b0d947ca1262a638e241f "pdflatex"
+  "report.aux" 1777838610.15586 15201 a3a1a93d0b9586dfc37ecf012f1867f1 "pdflatex"
+  "report.out" 1777838610.15686 19088 5ab6da99f20eab4e30ad576816444a4a "pdflatex"
   "report.tex" 1777837051.16118 1731 b75772ff9c7c1fec3c35aa6549c9fd82 ""
-  "report.toc" 1777837681.64681 8688 00af8deb8afd6e968b8c62483c754605 "pdflatex"
+  "report.toc" 1777838610.15738 8953 b64f3818ff50796697a3e49d8b0de5a4 "pdflatex"
   (generated)
   "report.aux"
   "report.log"
