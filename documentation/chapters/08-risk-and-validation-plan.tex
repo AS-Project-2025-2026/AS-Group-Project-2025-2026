@@ -15,38 +15,52 @@ must remain useful and understandable.
 
 \section{Main Architectural Risks}
 
+Severity is rated as High (H), Medium (M), or Low (L) based on the combination of likelihood
+and consequence if the risk is not mitigated.
+
 \begingroup
 \small
 \setlength{\tabcolsep}{4pt}
 \renewcommand{\arraystretch}{1.15}
 \begin{center}
-\begin{tabular}{|p{0.30\textwidth}|p{0.39\textwidth}|p{0.22\textwidth}|}
+\begin{tabular}{|p{0.26\textwidth}|p{0.08\textwidth}|p{0.32\textwidth}|p{0.22\textwidth}|}
 \hline
-\textbf{Risk} & \textbf{Why it matters} & \textbf{Related scenarios} \\
+\textbf{Risk} & \textbf{Severity} & \textbf{Why it matters} & \textbf{Related scenarios} \\
 \hline
-Surrounding systems are unavailable or delayed while checkout remains active &
+Surrounding systems unavailable while checkout is active &
+H &
 Warehouse or shipping failures must not cause paid orders to be lost or block later customers. &
-Availability under warehouse failure; recoverability after shipping outage \\
+QAS 1, QAS 4 \\
 \hline
-Inventory is stale or contradictory across online, store, and warehouse channels &
-The customer experience can become misleading if stock shown online no longer matches physical stock. &
-Consistency under stale inventory \\
+Inventory stale or contradictory across channels &
+H &
+Overselling or misleading availability information damages customer trust and creates fulfillment conflicts. &
+QAS 2, QAS 6 \\
 \hline
-Retry, replay, or idempotency is insufficient for asynchronous integration work &
-Failed integration work can be lost, repeated, or duplicated if durable retry and correlation are not designed carefully. &
-Availability; recoverability \\
+Retry or idempotency insufficient for async integration &
+H &
+Lost, duplicated, or unretried integration work is invisible and non-recoverable without correct outbox and key design. &
+QAS 1, QAS 4; ADR 2, ADR 5 \\
 \hline
-Pending, degraded, failed, or recovered states are not visible to operators &
-A resilient system is still hard to operate if support teams cannot explain order or stock state to customers. &
-Availability; recoverability; observability \\
+Degraded states not visible to operators &
+M &
+A technically resilient system is still operationally weak if support teams cannot explain or act on pending or failed state. &
+QAS 1, QAS 4; ADR 7 \\
 \hline
-Integration work slows customer-facing operations &
-Omnichannel synchronization must not make checkout and order-status views depend on slow external systems. &
-Performance during omnichannel order bursts \\
+Integration work slows customer-facing path &
+M &
+Asynchronous work must not re-enter the HTTP pipeline; any synchronous adapter call during checkout breaks QAS 3. &
+QAS 3 \\
 \hline
 Future adapters bypass boundaries or share the nopCommerce database &
-Direct coupling would make new channels harder to add and would weaken data ownership between systems. &
-Modifiability for new operational channels \\
+M &
+Direct coupling makes new channels harder to add and weakens data ownership; easy to introduce accidentally during adapter development. &
+QAS 5; ADR 3 \\
+\hline
+Dead-letter work silently grows without monitoring &
+M &
+Without alerts, failed integration work may accumulate unnoticed until an operator manually inspects the queue. &
+QAS 1, QAS 4; ADR 7 \\
 \hline
 \end{tabular}
 \end{center}
@@ -54,38 +68,80 @@ Modifiability for new operational channels \\
 
 \section{Validation Activities}
 
+Each activity includes a success criterion that defines what a passing result looks like. The
+first table explains the validation purpose; the second table defines the pass criteria and
+evidence to collect.
+
 \begingroup
 \small
 \setlength{\tabcolsep}{4pt}
 \renewcommand{\arraystretch}{1.15}
 \begin{center}
-\begin{tabular}{|p{0.30\textwidth}|p{0.40\textwidth}|p{0.21\textwidth}|}
+\begin{tabular}{|p{0.32\textwidth}|p{0.58\textwidth}|}
 \hline
-\textbf{Validation activity} & \textbf{What it proves} & \textbf{Evidence to collect} \\
+\textbf{Validation activity} & \textbf{What it proves} \\
 \hline
-Simulate a warehouse or shipping timeout during order processing &
-A paid order is persisted locally, marked as pending or degraded, and not lost when the external dependency fails. &
-Order screenshot, logs, retry record, timestamps \\
+Simulate warehouse timeout during order processing &
+Paid order is persisted locally, outbox record created, status marked pending, retry starts without operator action. \\
 \hline
-Simulate a delayed stock update from a store or warehouse system &
-The system can detect stale stock, expose the state, and create a reconciliation path instead of assuming immediate consistency. &
-Before and after stock views, discrepancy or reconciliation record \\
+Simulate shipping provider unavailability after warehouse pack &
+Failed label requests are stored, orders enter awaiting-shipping state, labels are created automatically on recovery. \\
 \hline
-Verify retry, replay, and idempotency behavior for failed integration work &
-Repeated attempts do not create duplicate fulfillment or shipping actions, and failed work can be retried after recovery. &
-Retry attempts, correlation identifier, duplicate-prevention result \\
+Simulate delayed stock update from POS or WMS &
+Stale stock is detected, marked, checkout revalidates, reconciliation record created if discrepancy found. \\
 \hline
-Verify support and operations visibility &
-Operators can distinguish normal, pending, degraded, failed, and recovered work without inspecting internal database tables. &
-Support or admin view screenshots, status transitions \\
+Verify idempotency under message replay &
+Replaying the same integration message does not create a duplicate fulfillment or label. \\
 \hline
-Run a small order-burst check while background synchronization is active &
-Customer-facing checkout and order-status reads remain responsive while asynchronous work is queued or processed. &
-Latency measurements, queued work count, test notes \\
+Verify operator visibility of integration states &
+Operators can distinguish normal, pending, degraded, failed, and dead-lettered work from the admin UI without database queries. \\
 \hline
-Review integration boundaries &
-Surrounding systems use adapters, APIs, or events and do not read or write the nopCommerce database directly. &
-Architecture review notes, code or configuration references \\
+Order-burst responsiveness check &
+Customer checkout and order-status reads stay within QAS 3 response measures while async background work is queued. \\
+\hline
+Integration boundary review &
+No adapter reads or writes nopCommerce tables directly; all cross-boundary communication uses message contracts. \\
+\hline
+\end{tabular}
+\end{center}
+\endgroup
+
+\begingroup
+\small
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{center}
+\begin{tabular}{|p{0.32\textwidth}|p{0.31\textwidth}|p{0.27\textwidth}|}
+\hline
+\textbf{Validation activity} & \textbf{Success criterion} & \textbf{Evidence to collect} \\
+\hline
+Simulate warehouse timeout during order processing &
+Order exists in DB; outbox record visible; admin shows ``awaiting warehouse'' within 5 s; first retry within 5 min. &
+Order record, outbox row, admin screenshot, retry log with timestamps \\
+\hline
+Simulate shipping provider unavailability after warehouse pack &
+Zero lost label requests; orders show awaiting-shipping; 95\% of queued labels created within 10 min of provider recovery. &
+Retry table, admin view before and after recovery, label creation log \\
+\hline
+Simulate delayed stock update from POS or WMS &
+Stock marked stale within 30 s of threshold exceeded; checkout blocks or warns on pending reconciliation; reconciliation record created within 1 min. &
+Before/after stock views, \texttt{IsStale} flag log, reconciliation record \\
+\hline
+Verify idempotency under message replay &
+Exactly one warehouse acknowledgement per order after replaying the outbox message three times. &
+Warehouse adapter log, fulfillment count in admin, idempotency key deduplication record \\
+\hline
+Verify operator visibility of integration states &
+All five states visible through admin UI; no direct DB query needed. &
+Admin UI screenshots for each state, status transition log \\
+\hline
+Order-burst responsiveness check &
+Checkout p95 $<$ 2 s; order-status p95 $<$ 1 s; queue depth does not grow unboundedly during test. &
+Latency percentiles, queue depth over time, background worker throughput \\
+\hline
+Integration boundary review &
+Code review and network trace confirm no direct DB connection strings in adapter configs. &
+Code or config review notes, network trace or Wireshark capture \\
 \hline
 \end{tabular}
 \end{center}
