@@ -37,7 +37,7 @@ Integration Worker & Reads outbox, publishes commands and events to RabbitMQ, pr
 \hline
 Warehouse Adapter & Translates fulfillment commands into WMS API calls; receives picked, packed, delayed, and failed fulfillment events; relays status back & RabbitMQ; WMS API \\
 \hline
-Inventory Adapter & Synchronizes stock changes from warehouse and POS into the availability projection; detects stale and conflicting records; queues reconciliation tasks & RabbitMQ; nopCommerce DB (inventory projection) \\
+Inventory Adapter & Normalizes stock changes from warehouse and POS; detects stale and conflicting records; emits availability and reconciliation events & RabbitMQ; WMS/POS stock event sources \\
 \hline
 Shipping Adapter & Requests carrier labels; stores failed label requests in the retry queue; retries on provider recovery; relays tracking updates & RabbitMQ; Shipping provider API \\
 \hline
@@ -85,9 +85,10 @@ is slow or its adapter is restarting, the order is not lost and the checkout pat
 blocked; the fulfillment state becomes pending or degraded and is retried later.
 
 Inventory updates also follow an asynchronous model. Warehouse and store systems publish stock
-changes, and the inventory adapter updates the availability view used by nopCommerce. Because
-this data may be stale, checkout still performs stock validation before completion, and detected
-conflicts are sent to reconciliation.
+changes, and the Inventory Adapter normalizes them into integration events. The Integration
+Worker then updates the availability projection used by nopCommerce. Because this data may be
+stale, checkout still performs stock validation before completion, and detected conflicts are
+sent to reconciliation.
 
 Shipping follows the same pattern. When the warehouse marks an order as ready to dispatch, the
 shipping adapter requests the label. If the provider fails, the label request is stored, the order
@@ -165,14 +166,14 @@ owner (the Integration Coordination context) and are not exposed to external ada
 The diagram is organized into five zones, each corresponding to a data-ownership boundary
 described in Section~\ref{sec:data-ownership}.
 
-\textbf{Zone 1 --- nopCommerce Commerce Core.} The left zone shows the customer-facing
+\textbf{Zone 1 --- nopCommerce Commerce Core.} The top zone shows the customer-facing
 synchronous path: browser or mobile client sends HTTP requests to the nopCommerce web
 application, which processes cart, checkout, and payment result handling entirely within the
 monolith. The order and its outbox record are written in a single database transaction (ADR 2)
 before the HTTP response is returned. No external system is called during this path, so
 warehouse or shipping unavailability cannot block checkout.
 
-\textbf{Zone 2 --- Integration Worker and message broker.} The center zone shows the
+\textbf{Zone 2 --- Integration Worker and message broker.} The middle integration zone shows the
 Integration Worker reading the outbox and publishing commands and events to RabbitMQ. RabbitMQ
 is the durable transport between the Integration Worker and all adapter processes. Arrows
 entering this zone from the right represent acknowledgements, fulfillment updates, stock
@@ -180,13 +181,13 @@ changes, and tracking events arriving from adapters. The Integration Worker appl
 policy (ADR 6), routes failures to the dead-letter queue (ADR 7), and writes integration-status
 projections consumed by the Support and Operations View.
 
-\textbf{Zone 3 --- Adapter services.} The right zone contains four independently deployable
+\textbf{Zone 3 --- Adapter services.} The adapter zone contains four independently deployable
 adapter processes: Warehouse Adapter, Inventory Adapter, Shipping Adapter, and Store Operations
 Adapter. Each adapter has its own RabbitMQ queue and its own outbound connection to the
 corresponding external system. The dashed boundaries in this zone indicate that each adapter
 can be stopped, replaced, or restarted without affecting the others or the commerce core.
 
-\textbf{Zone 4 --- External systems.} The outermost zone represents the systems that VerdeMart
+\textbf{Zone 4 --- External systems.} The external-systems zone represents the systems that VerdeMart
 does not own: the WMS (OpenBoxes or equivalent), the shipping carrier API, the POS system, and
 the ERP. These systems communicate exclusively through their adapter; no arrow crosses directly
 from an external system into the nopCommerce zone.
@@ -206,7 +207,7 @@ backend synchronization).
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\textwidth]{images/target-architecture-scenario-c.png}
+\includegraphics[width=0.95\textwidth]{images/image.png}
 \caption{Target architecture for Scenario C: nopCommerce as an omnichannel commerce core.}
 \label{fig:target-architecture-scenario-c}
 \end{figure}

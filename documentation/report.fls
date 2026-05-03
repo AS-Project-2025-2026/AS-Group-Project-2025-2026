@@ -242,11 +242,11 @@ INPUT ./chapters/06-target-architecture.tex
 INPUT ./chapters/06-target-architecture.tex
 INPUT chapters/06-target-architecture.tex
 INPUT /usr/share/texmf/fonts/tfm/public/lm/ec-lmri10.tfm
-INPUT ./images/target-architecture-scenario-c.png
-INPUT ./images/target-architecture-scenario-c.png
-INPUT ./images/target-architecture-scenario-c.png
-INPUT ./images/target-architecture-scenario-c.png
-INPUT ./images/target-architecture-scenario-c.png
+INPUT ./images/image.png
+INPUT ./images/image.png
+INPUT ./images/image.png
+INPUT ./images/image.png
+INPUT ./images/image.png
 INPUT ./chapters/07-architectural-decisions.tex
 INPUT ./chapters/07-architectural-decisions.tex
 INPUT ./chapters/07-architectural-decisions.tex

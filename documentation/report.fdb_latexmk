@@ -1,5 +1,5 @@
 # Fdb version 4
-["pdflatex"] 1777808900.00748 "report.tex" "report.pdf" "report" 1777808900.9315 0
+["pdflatex"] 1777809406.90162 "report.tex" "report.pdf" "report" 1777809407.84591 0
   "/etc/texmf/web2c/texmf.cnf" 1749408104.99342 475 c0e671620eb5563b2130f56340a5fde8 ""
   "/usr/share/texlive/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/jknappen/ec/ecrm1095.tfm" 1136768653 3584 929cdff2b7a8c11bd4d49fd68cb0ae70 ""
@@ -111,18 +111,18 @@
   "chapters/03-domain-and-bounded-contexts.tex" 1777806880.50043 17722 ee79066a5fe4fd4aa302a1cc1208779a ""
   "chapters/04-quality-attribute-scenarios.tex" 1777807195.79345 9836 c04168eb225069bfef7721fb14cd6f7c ""
   "chapters/05-architectural-approach.tex" 1777807360.69974 7436 1f93cf59a1a8ff8a054a4ee6008d901e ""
-  "chapters/06-target-architecture.tex" 1777808896.25347 13504 994e19a6cacfa013f7fdcb430b0e2568 ""
+  "chapters/06-target-architecture.tex" 1777809402.21522 13546 fcb54b0610b96d96327a49214092ad5e ""
   "chapters/07-architectural-decisions.tex" 1777807209.08639 22373 fe078a9eb7431a2b60c11ee89e99a7a8 ""
   "chapters/08-risk-and-validation-plan.tex" 1777807834.86496 7179 1cd98d20ef1c220f57297a91af7fd46e ""
   "chapters/09-evolution-roadmap.tex" 1777283719.90173 28 e1c32aadfb365ea4450d3f022d79bb1f ""
   "chapters/10-feasibility-spike.tex" 1777283719.90273 98 c888d57fdbe7a112f945dd70e32686d5 ""
+  "images/image.png" 1777809251.65708 134125 0ef0d81f9ff1e09e46ec561bc9d52948 ""
   "images/nopCommerceArchitecture.png" 1777303700.82823 56374 c9e3176df57a0ec87ab03d42c466d37b ""
-  "images/target-architecture-scenario-c.png" 1777808677.41499 85337 9077dc90694674ae22eaef0a41c2198c ""
   "images/ualogo.png" 1777557920.83257 43411 9a919fc319605cd52cbffa5e627844c0 ""
-  "report.aux" 1777808900.86345 13613 4fa48b488c4bec8a436e04bc8bead980 "pdflatex"
-  "report.out" 1777808900.86545 17248 7cf465d6c116e87dba9c004f008916bc "pdflatex"
+  "report.aux" 1777809407.77921 13613 4fa48b488c4bec8a436e04bc8bead980 "pdflatex"
+  "report.out" 1777809407.78085 17248 7cf465d6c116e87dba9c004f008916bc "pdflatex"
   "report.tex" 1777808896.25247 1731 b75772ff9c7c1fec3c35aa6549c9fd82 ""
-  "report.toc" 1777808900.86664 8210 18367133de834acdabf930186121f859 "pdflatex"
+  "report.toc" 1777809407.78121 8210 18367133de834acdabf930186121f859 "pdflatex"
   (generated)
   "report.aux"
   "report.log"
