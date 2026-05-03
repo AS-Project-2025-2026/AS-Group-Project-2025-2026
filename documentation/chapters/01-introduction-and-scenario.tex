@@ -2,25 +2,69 @@
 
 \section{Scenario Choice}
 
-This project follows \textbf{Scenario C - Omnichannel Commerce Core}. VerdeMart Retail
+This project follows \textbf{Scenario C --- Omnichannel Commerce Core}. VerdeMart Retail
 started by using nopCommerce as its online storefront, but the business now needs more than a
 web shop. It wants web sales, warehouse execution, shipping, store operations, support, and
 customer visibility to work together as part of one commerce experience.
 
-In this scenario, nopCommerce becomes the commerce core of that wider ecosystem. A web
-order should be reflected in operational systems such as warehouse and shipping, and changes
-that happen outside nopCommerce, such as stock or fulfillment updates, should become visible
-again in the customer and operator experience. This is important because those surrounding
-systems may be slow, stale, unavailable, or inconsistent, but the commerce experience still
-needs to remain useful and understandable.
+In this scenario, nopCommerce becomes the commerce core of that wider ecosystem. A web order
+should be reflected in operational systems such as warehouse and shipping, and changes that
+happen outside nopCommerce, such as stock or fulfillment updates, should become visible again
+in the customer and operator experience. This is important because those surrounding systems
+may be slow, stale, unavailable, or inconsistent, but the commerce experience still needs to
+remain useful and understandable.
+
+\section{Business Context and Drivers}
+
+VerdeMart Retail began as a single-channel online shop. Three business pressures now demand an
+architectural response:
+
+\begin{enumerate}
+    \item \textbf{Operational growth.} Fulfillment has moved to a dedicated warehouse, and
+    physical stores now handle pickup and return flows. nopCommerce has no first-class model
+    for communicating with either system, so operators manage these flows manually or through
+    fragile workarounds.
+
+    \item \textbf{Stock inconsistency.} The web catalog shows stock numbers from nopCommerce's
+    local model. Warehouse and store sales can reduce physical stock without immediately
+    updating the online view. This creates overselling risk and damages customer trust.
+
+    \item \textbf{Operational fragility.} Any slow or unavailable external system currently
+    causes visible degradation during checkout or shipment processing. There is no durable
+    retry path, no degraded-state visibility, and no recovery workflow.
+\end{enumerate}
+
+These pressures translate directly into the quality attribute scenarios defined in Chapter 4:
+availability during warehouse or shipping failure, consistency under stale inventory,
+performance under campaign load, recoverability after provider outages, and modifiability as
+new operational channels are added.
+
+\section{Surrounding Systems in Scope}
+
+The assignment permits the use of simulators or stubs for surrounding systems. For this
+project, the following systems from the Scenario C ecosystem are represented:
+
+\begin{itemize}
+    \item \textbf{Warehouse execution system} (OpenBoxes or equivalent WMS) --- receives
+    fulfillment requests, returns picked, packed, delayed, and failed acknowledgements.
+    \item \textbf{Shipping provider} (WireMock simulator) --- handles label creation and
+    tracking updates; can be made unavailable to test the recoverability scenario.
+    \item \textbf{Store operations / POS} --- publishes in-store sale events and pickup state
+    changes that must update the online inventory view.
+    \item \textbf{ERP / back-office} (ERPNext or equivalent) --- receives order and financial
+    summary events from the commerce core.
+\end{itemize}
+
+RabbitMQ is used as the message broker for asynchronous propagation, consistent with the
+Scenario C surrounding system list.
 
 \section{Core Architectural Problem}
 
 Currently, nopCommerce mainly acts as the online shop: it owns the storefront, catalog
-browsing, cart, checkout, customer accounts, and order creation inside one web-centered
+browsing, cart, checkout, customer accounts, and order creation inside one web-centred
 platform. This works while the business is mostly operating through the online channel, but it
-does not fully address an omnichannel environment where warehouse execution, shipping,
-store operations, and support systems also influence the customer experience.
+does not address an omnichannel environment where warehouse execution, shipping, store
+operations, and support systems also influence the customer experience.
 
 The core architectural problem is deciding how this online shop can evolve into a commerce
 core without assuming that every surrounding operational system is always fast, available, and
