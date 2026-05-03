@@ -13,7 +13,7 @@ In this project, ADD is applied as follows:
 
 \begin{enumerate}
     \item Drivers identified: availability, consistency, performance, recoverability, and modifiability.
-    \item Five quality attribute scenarios defined, each with a measurable response.
+    \item Six quality attribute scenarios defined, each with a measurable response.
     \item Tactics selected per scenario: asynchronous integration, transactional outbox-style event publishing, read-model separation, retry queue, reconciliation, adapter pattern, and observability.
     \item Target architecture decomposed around those tactics: nopCommerce Core, Integration Layer, Operational Adapters, External Systems, and Support and Operations View.
     \item Validation focused on the riskiest path: asynchronous propagation, degraded dependency handling, retry, and recovery.
@@ -41,7 +41,7 @@ This gives a direct trace from the problem to the architecture:
 \hline
 Availability & Scenario 1 & Avoid synchronous dependency on warehouse systems during checkout. \\
 \hline
-Consistency & Scenario 2 & Introduce explicit inventory state, stale-state visibility, and reconciliation. \\
+Consistency & Scenarios 2, 6 & Introduce explicit inventory state, stale-state visibility, conflict detection, and reconciliation. \\
 \hline
 Performance & Scenario 3 & Keep checkout and order reads separate from slow integration processing. \\
 \hline
@@ -73,6 +73,35 @@ technology architecture. VerdeMart does have an omnichannel business context, bu
 this work is a focused software architecture evolution of nopCommerce, not a full enterprise
 architecture programme.
 
+\section{Tactics Selected per Quality Attribute}
+
+ADD requires explicit tactics to address each quality attribute scenario. The following table
+records which tactics were chosen and why each was preferred over the alternatives
+considered in the ADRs.
+
+\begingroup
+\small
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{center}
+\begin{tabular}{|p{0.19\textwidth}|p{0.30\textwidth}|p{0.40\textwidth}|}
+\hline
+\textbf{Quality attribute} & \textbf{Tactics selected} & \textbf{Architectural manifestation} \\
+\hline
+Availability & Asynchronous integration, durable recording of work & Outbox pattern (ADR 2): order and its integration task are committed atomically; warehouse unavailability does not block checkout. \\
+\hline
+Consistency & Stale-state marking, explicit reconciliation & Inventory metadata fields (\texttt{IsStale}, \texttt{ConflictFlag}); reconciliation record created on divergence; checkout revalidates against \texttt{PendingReconciliation}. \\
+\hline
+Performance & Separate synchronous and asynchronous paths, read-model projection & Customer request path contains no external I/O; integration work runs outside the HTTP pipeline in the Integration Worker. \\
+\hline
+Recoverability & Idempotency, retry with backoff, dead-letter handling & Each integration task carries a correlation identifier and idempotency key; the retry scheduler applies exponential backoff; failed work beyond the retry limit is moved to a dead-letter queue visible to operators. \\
+\hline
+Modifiability & Adapter pattern, stable event contracts, no shared database & Each external system is reached through a dedicated adapter (ADR 3); internal message contracts are owned by the Integration Coordination context; no adapter accesses nopCommerce tables directly. \\
+\hline
+\end{tabular}
+\end{center}
+\endgroup
+
 \section{How ADD Shapes the Target Architecture}
 
 Using ADD means that each architectural element in the target design should answer a specific
@@ -80,16 +109,17 @@ quality attribute pressure. The surrounding systems are not added only because t
 business scenario; they are added because they create design pressure that nopCommerce must
 handle explicitly.
 
-The target architecture emphasizes asynchronous integration because Scenario 1 requires that a
+The target architecture emphasises asynchronous integration because Scenario 1 requires that a
 warehouse timeout does not block checkout. A direct synchronous call from checkout to the
 warehouse cannot satisfy that constraint, so accepted orders are propagated through a durable
 integration path.
 
-It also makes status explicit for pending, degraded, failed, and recovered work because
-Scenarios 1 and 4 require support agents and operators to understand what is happening during
-warehouse or shipping failure. Retry and reconciliation are part of the architecture because
-Scenarios 2 and 4 assume stale inventory, failed label creation, and later recovery. External
-systems are connected through adapters because Scenario 5 requires new operational channels to
-be added without rewriting checkout or sharing the nopCommerce database.
+Status is made explicit for pending, degraded, failed, and recovered work because Scenarios 1
+and 4 require support agents and operators to understand what is happening during warehouse or
+shipping failure. Retry and reconciliation are part of the architecture because Scenarios 2, 4,
+and 6 assume stale inventory, contradictory cross-channel stock, failed label creation, and
+later recovery. External systems are connected through adapters because Scenario 5 requires new
+operational channels to be added without rewriting checkout or sharing the nopCommerce database.
 
-The next chapter uses these ADD-driven conclusions to define the target architecture.
+The next chapter uses these ADD-driven tactics to define the target architecture and its
+component responsibilities.

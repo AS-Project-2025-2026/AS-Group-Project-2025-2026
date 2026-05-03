@@ -58,7 +58,7 @@ The trade-off is that fulfillment state is eventually consistent: the order mode
 intermediate states such as awaiting warehouse confirmation or fulfillment delayed, and those
 states must be visible to support agents and operators. Integration tasks also need idempotency
 guarantees to prevent duplicate fulfillment commands when retries occur, which is the subject
-of ADR 2.
+of ADR 5.
 
 \section{ADR 2 — Transactional Outbox for Durable Integration Task Publishing}
 
@@ -80,13 +80,13 @@ created.
 
 Integration tasks are written in the same database transaction as the order. When
 \texttt{OrderProcessingService} creates an order, it also inserts an outbox record in the same
-transaction. A scheduled task periodically reads unpublished records, dispatches them to the
-integration layer, and marks them published. If the process restarts before the scheduled task
+transaction. The Integration Worker periodically reads unpublished records, dispatches them to
+the integration layer, and marks them published. If the process restarts before the worker
 runs, the record survives and is processed on the next cycle.
 
 This gives a simple atomicity guarantee: the order and its integration task either both exist
 or neither does. At-least-once delivery follows naturally, which means consumers must be
-idempotent, duplicate messages will arrive during retries after uncertain acknowledgements.
+idempotent because duplicate messages can arrive during retries after uncertain acknowledgements.
 
 \subsection{Alternatives Considered}
 
@@ -106,13 +106,13 @@ explicit outbox, but without the clear ownership and structure.
 delivery guarantees once a message is accepted. The difficulty is that the producer still needs
 to successfully reach the broker within the same logical operation as the order commit. When
 the broker is temporarily unavailable at order creation time, the task is never enqueued. An
-outbox moves the broker dependency to the background scheduled task, which tolerates broker
+outbox moves the broker dependency to the Integration Worker, which tolerates broker
 unavailability at commit time without affecting the customer.
 
 \subsection{Consequences}
 
-No paid order is silently dropped due to a transient broker or process failure. The scheduled
-task introduces a small propagation delay between order creation and warehouse notification,
+No paid order is silently dropped due to a transient broker or process failure. The worker
+polling interval introduces a small propagation delay between order creation and warehouse notification,
 which is acceptable given the asynchronous design. The outbox table becomes
 integration-critical infrastructure and must be covered by database backups and operational
 monitoring. The publishing interval also determines the minimum propagation latency, which must
@@ -200,12 +200,12 @@ do not currently exist, without resolving any of the five identified pressures.
 \subsection{Decision}
 
 nopCommerce remains the commerce core and is not decomposed. Checkout, catalog, payments,
-customer accounts, and canonical order management stay inside the monolith. The only
-independently deployable component introduced by this evolution is the Integration Coordination
-context, which owns the outbox, retry, idempotency, and reconciliation behaviour described in
-ADR 2. Adapters for warehouse, shipping, inventory, and store operations sit around this layer.
+customer accounts, and canonical order management stay inside the monolith. The main new
+independently deployable platform component introduced by this evolution is the Integration
+Coordination context, which owns the outbox, retry, idempotency, and reconciliation behaviour
+described in ADR 2. Adapters for warehouse, shipping, inventory, and store operations sit around this layer.
 The monolith interacts with the Integration Coordination context through its outbox table and a
-publishing scheduled task, remaining decoupled from the internal design of any individual
+publishing worker, remaining decoupled from the internal design of any individual
 adapter.
 
 \subsection{Alternatives Considered}
@@ -238,9 +238,137 @@ same functional scope.
 
 The monolith retains its operational simplicity: one deployable unit for the full
 customer-facing commerce experience, with all existing capabilities, checkout, payments,
-catalog, admin, and plugin extensibility intact. The Integration Coordination context is the
-only new independently deployable component, and its scope is tightly bounded to reliability
-and coordination. The main limitation is that the commerce core cannot be scaled independently
-from the integration layer, but horizontal scaling of the combined unit is sufficient for the
-load levels identified in QA Scenario 3 and is not a constraint that justifies decomposition at
-this stage.
+catalog, admin, and plugin extensibility intact. The Integration Coordination context is tightly
+bounded to reliability and coordination, while adapter services remain boundary-specific and
+replaceable. The main limitation is that the commerce core cannot be scaled independently from
+its own checkout and order-management data model, but this is sufficient for the load levels
+identified in QA Scenario 3 and is not a constraint that justifies decomposition at this stage.
+This decision does not preclude future extraction of read-heavy services such as the catalog or
+order-status projection if load patterns justify it later.
+
+\section{ADR 5 --- Idempotency Key Strategy for Integration Messages}
+
+\subsection{Context}
+
+ADR 1 establishes asynchronous fulfillment, and ADR 2 guarantees at-least-once delivery
+through the outbox. At-least-once delivery means that the same fulfillment or label-creation
+message may be delivered more than once during retries. If the warehouse or shipping adapter
+processes the same message twice, the result can be a duplicate fulfillment request or a
+second shipping label for the same order --- both of which cause operational problems.
+
+\subsection{Decision}
+
+Every integration message carries an \texttt{IdempotencyKey} generated at message creation
+time as a UUID. The key is stored in the outbox record so it is stable across retries. Each
+adapter is responsible for detecting a duplicate key and returning a success acknowledgement
+without repeating the side-effecting operation. The Integration Coordination context records
+key-to-outcome pairs for a configurable deduplication window (default: 48 hours). Successful
+outcomes are cached to prevent unnecessary processing.
+
+\subsection{Alternatives Considered}
+
+\textbf{Order-ID-based idempotency.} Using the nopCommerce order identifier as the idempotency
+key is simpler, but it conflates the order identity with the delivery attempt identity. If an
+order requires two separate fulfillment requests for different warehouse splits, both would
+carry the same key and the second would be incorrectly treated as a duplicate.
+
+\textbf{Idempotency enforced only at the database level.} Some adapters add a unique constraint
+on the order identifier in their local database. This prevents duplicate processing but ties
+the idempotency guarantee to adapter internals rather than the message contract. It cannot be
+relied upon for external systems where the adapter is a surrogate or stub.
+
+\subsection{Consequences}
+
+Adapters must implement idempotency checks on the \texttt{IdempotencyKey}. The deduplication
+window creates a bounded storage requirement for the key-outcome table. The risk of missing a
+duplicate outside the 48-hour window is low for the use case, since retries for any single
+message should complete well within that period.
+
+\section{ADR 6 --- Retry Policy and Circuit Breaker for Adapter Calls}
+
+\subsection{Context}
+
+When a warehouse or shipping adapter is unavailable, the Integration Worker retries the failed
+message. Without a controlled retry policy, the worker can overwhelm a recovering adapter with
+a burst of accumulated retries, turning a temporary outage into a sustained overload. A circuit
+breaker pattern can prevent this by stopping retry attempts after a threshold is reached and
+resuming only after a health check succeeds.
+
+\subsection{Decision}
+
+The retry policy applies exponential backoff with the following parameters: initial delay of
+2 seconds, backoff multiplier of 2, maximum delay of 5 minutes, and maximum of 10 retry
+attempts. After 5 consecutive failures from the same adapter, the circuit breaker opens and
+blocks further attempts for a configurable cooldown period (default: 5 minutes). After the
+cooldown, one probe attempt is made. If it succeeds, the circuit closes and normal retry
+resumes. If it fails, the cooldown restarts.
+
+Messages that exhaust all retry attempts are moved to the dead-letter queue described in
+ADR 7.
+
+\subsection{Alternatives Considered}
+
+\textbf{Fixed-interval retry without a circuit breaker.} Fixed-interval retries are simpler but
+can create a thundering-herd effect when a dependency recovers. They also provide no protection
+against sustained outages: a dependency down for 30 minutes would receive hundreds of retry
+attempts per message before the outbox is drained.
+
+\textbf{Linear backoff.} Linear backoff reduces the thundering herd compared to fixed intervals
+but converges to a high retry rate more quickly than exponential backoff and does not provide
+the same degree of protection during long outages.
+
+\subsection{Consequences}
+
+The maximum propagation delay for a fulfilled order under sustained warehouse failure is bounded
+by the backoff ceiling and max retries (approximately 50 minutes of active retry before
+dead-letter). The circuit breaker protects the recovering adapter from burst load. Operators
+must be informed when a circuit opens, because it means fulfillment work has stopped flowing
+to the affected adapter. This requires a monitoring alert and a visible circuit-state indicator
+in the Support and Operations View.
+
+\section{ADR 7 --- Dead-Letter Queue and Operator Intervention Model}
+
+\subsection{Context}
+
+After the maximum retry attempts defined in ADR 6 are exhausted, the integration message has
+failed permanently in the automated path. A decision must be made about what happens next:
+the message can be silently discarded, moved to an archive, or presented to an operator for
+manual action.
+
+Discarding messages is not acceptable for fulfillment or shipping work, since a lost
+fulfillment message means a paid order is never sent to the warehouse. The architecture
+therefore needs a durable dead-letter record and a defined escalation process.
+
+\subsection{Decision}
+
+Failed messages are written to a dead-letter table in the nopCommerce database with the
+following fields: the original message payload, the idempotency key, the correlation identifier
+(order ID), the adapter that failed, the failure reason for the last attempt, the timestamp of
+the first and last attempt, and the escalation state (new, acknowledged, resolved).
+
+The Support and Operations View surfaces dead-letter records alongside pending and retrying
+work. An alert fires to the operations team when a new dead-letter entry is created. Operators
+can manually re-queue a dead-letter message after the dependency is confirmed healthy, or mark
+it as resolved if the situation is handled by other means such as manual fulfillment or refund.
+
+Dead-letter records are retained for 30 days and then archived.
+
+\subsection{Alternatives Considered}
+
+\textbf{Separate message broker dead-letter queue.} RabbitMQ supports dead-letter exchanges
+natively, and routing failed messages there is a common pattern. For this project, keeping the
+dead-letter record in the database gives operators a single interface for all integration work
+rather than requiring access to the broker management UI. It also makes dead-letter records
+part of the same backup and audit trail as orders.
+
+\textbf{Automatic retry without a dead-letter limit.} Retrying indefinitely avoids requiring
+operator intervention but creates unbounded queue growth and makes it impossible to distinguish
+transient from permanent failures. Operations cannot act on a problem they cannot see.
+
+\subsection{Consequences}
+
+The dead-letter table is integration-critical infrastructure and must be monitored and backed
+up alongside the orders table. The operator intervention model introduces a human step in the
+recovery path, which is appropriate for permanent failures but requires clear UI affordances
+in the Support and Operations View. The 30-day retention policy must be aligned with the
+business's order dispute window.
