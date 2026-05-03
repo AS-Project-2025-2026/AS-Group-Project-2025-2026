@@ -146,16 +146,3 @@ Code or config review notes, network trace or Wireshark capture \\
 \end{tabular}
 \end{center}
 \endgroup
-
-\section{Feasibility Spike Focus}
-
-The feasibility spike should target the riskiest part of the target architecture: durable
-asynchronous order propagation from nopCommerce to a surrounding operational capability when that
-capability is slow or unavailable. The spike can use a simulator or stub for the warehouse or
-shipping dependency if a real system is not available.
-
-The spike should start from a placed order or an equivalent order-created event. The external
-adapter should then be made unavailable or slow. The expected result is that the commerce core
-keeps the order, records pending integration work, exposes a degraded or awaiting-confirmation
-state, and later retries successfully when the dependency recovers. Chapter 10 should contain the
-concrete implementation details and evidence for this spike.
