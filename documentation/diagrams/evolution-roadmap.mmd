@@ -1,0 +1,14 @@
+flowchart LR
+    P1["Phase 1\nOutbox & Async\nPropagation"]
+    P2["Phase 2\nWarehouse Adapter\n& Degraded State"]
+    P3["Phase 3\nInventory Projection\n& Stale-State"]
+    P4["Phase 4\nOperational\nVisibility"]
+
+    P1 --> P2
+    P2 --> P3
+    P2 --> P4
+    P3 --> P4
+
+    P1 -."coexists with\nin-process events".- P2
+    P2 -."coexists with\nsystem stubs".- P3
+    P3 -."coexists with\nlocal stock model".- P4
