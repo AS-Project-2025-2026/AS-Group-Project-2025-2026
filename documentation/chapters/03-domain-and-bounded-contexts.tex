@@ -322,34 +322,12 @@ Integration coordination to support view & Internal & Read model/projection & Op
 
 \section{Architecture Diagram}
 
-The following textual diagram summarizes the boundary model without introducing additional
-diagramming dependencies into the report:
-
-\begin{center}
-\begin{tabular}{c}
-\hline
-Customer / Admin synchronous storefront and admin interactions \\
-\hline
-$\downarrow$ \\
-\hline
-nopCommerce Commerce Core \\
-\texttt{Order}, \texttt{OrderItem}, \texttt{Product}, \texttt{Shipment}, checkout, payments, canonical web order \\
-\hline
-$\downarrow$ asynchronous target-state events or integration tasks \\
-\hline
-Integration Coordination Context \\
-delivery state, correlation, idempotency, retry, dead-letter, reconciliation \\
-\hline
-$\downarrow$ adapters/APIs/events, no shared database \\
-\hline
-Warehouse Fulfillment \quad Inventory Availability \quad Shipping \quad Store/POS \\
-\hline
-$\downarrow$ projections and operational status \\
-\hline
-Support and Operations Visibility \\
-\hline
-\end{tabular}
-\end{center}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{images/boundary_model.png}
+\caption{Domain and boundary model for Scenario C.}
+\label{fig:domain-boundary-model}
+\end{figure}
 
 This model is traceable to the quality attributes in Chapter 4. Availability is supported by
 accepting and persisting web orders without synchronously requiring the warehouse or shipping
