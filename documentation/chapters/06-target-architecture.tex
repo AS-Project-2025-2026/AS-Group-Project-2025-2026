@@ -22,32 +22,50 @@ boundaries.
 
 \section{Main Components and Services}
 
-\textbf{nopCommerce Commerce Core} is the main application and remains the system of record
-for web customers, shopping carts, checkout, payments, and created orders. It owns the
-customer-facing transaction and decides whether an order can be accepted.
+\begingroup
+\small
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{center}
+\begin{tabular}{|p{0.22\textwidth}|p{0.40\textwidth}|p{0.28\textwidth}|}
+\hline
+\textbf{Component} & \textbf{Responsibilities} & \textbf{Communicates with} \\
+\hline
+nopCommerce Core & Catalog, cart, checkout, payment result handling, order creation, customer accounts, canonical web order & Customers and admin (HTTP); Integration Worker via outbox \\
+\hline
+Integration Worker & Reads outbox, publishes commands and events to RabbitMQ, processes inbound adapter events, runs retry and dead-letter scheduler & nopCommerce DB (outbox tables); RabbitMQ queues \\
+\hline
+Warehouse Adapter & Translates fulfillment commands into WMS API calls; receives picked, packed, delayed, and failed fulfillment events; relays status back & RabbitMQ; WMS API \\
+\hline
+Inventory Adapter & Synchronizes stock changes from warehouse and POS into the availability projection; detects stale and conflicting records; queues reconciliation tasks & RabbitMQ; nopCommerce DB (inventory projection) \\
+\hline
+Shipping Adapter & Requests carrier labels; stores failed label requests in the retry queue; retries on provider recovery; relays tracking updates & RabbitMQ; Shipping provider API \\
+\hline
+Store Operations Adapter & Receives in-store sale events, pickup readiness, and pickup-completed updates; relays store stock changes to the inventory adapter & RabbitMQ; POS system \\
+\hline
+Support and Operations View & Exposes cross-boundary integration state to operators and support agents; surfaces failure reasons, retry counts, correlation identifiers, and reconciliation tasks & Integration metadata DB (read model) \\
+\hline
+\end{tabular}
+\end{center}
+\endgroup
 
-\textbf{Integration Layer} is responsible for communication between nopCommerce and external
-operational systems. It receives events from the commerce core, routes them to the correct
-adapter, stores pending integration work, and records failures for retry or reconciliation.
+The Support and Operations View deserves particular attention because a resilient integration
+layer is operationally weak if support agents cannot explain what happened to an order. The
+view exposes:
 
-\textbf{Warehouse Adapter} translates accepted orders into fulfillment requests for the
-warehouse execution system. It also receives fulfillment updates such as picked, packed, or
-failed fulfillment.
-
-\textbf{Inventory Adapter} synchronizes stock changes from warehouse and store systems into an
-inventory availability view used by nopCommerce. It is responsible for detecting stale or
-conflicting stock information and triggering reconciliation.
-
-\textbf{Shipping Adapter} manages shipment label creation and shipping status updates. When the
-shipping provider is unavailable, it stores failed label requests and retries them later.
-
-\textbf{Store Operations Adapter} represents physical-store capabilities such as pickup,
-in-store stock changes, and pickup-completed updates. It allows store operations to participate
-in the commerce flow without accessing the nopCommerce database directly.
-
-\textbf{Support and Operations View} gives support agents and operators visibility over pending,
-degraded, failed, and recovered work. This is important because a degraded omnichannel system
-must be understandable, not only technically resilient.
+\begin{itemize}
+    \item orders in \textit{pending}, \textit{retrying}, \textit{failed}, and
+    \textit{dead-lettered} states, with the current retry count and the scheduled time for
+    the next retry attempt;
+    \item the specific failure reason recorded by the adapter --- for example, warehouse
+    timeout, label provider HTTP error, or inventory conflict;
+    \item correlation identifiers that link a web order to its warehouse, shipping, inventory,
+    and POS integration records, making it possible to trace a single order across all systems;
+    \item a re-queue action that moves a dead-lettered record back to the retry queue without
+    requiring direct database access or operator scripting;
+    \item inventory records with \texttt{IsStale} or \texttt{ConflictFlag} set, together with
+    the associated reconciliation task status and whether operator action is still required.
+\end{itemize}
 
 \section{Synchronous and Asynchronous Interactions}
 
@@ -58,11 +76,13 @@ point of view. These operations must be fast and predictable because they direct
 buying experience.
 
 Interactions with warehouse, shipping, inventory synchronization, and store operations are
-primarily asynchronous. After an order is created, nopCommerce publishes an order-created event
-or stores an equivalent integration task. The integration layer then sends the fulfillment request
-to the warehouse adapter. If the warehouse is slow or unavailable, the order is not lost and the
-checkout path is not blocked; the fulfillment state becomes pending or degraded and is retried
-later.
+primarily asynchronous. After an order is created, nopCommerce writes an integration task to the outbox atomically
+with the order record. The Integration Worker reads the outbox and publishes a fulfillment
+command to RabbitMQ. The Warehouse Adapter consumes the command from its dedicated queue and
+forwards it to the WMS API. Because messages accumulate in RabbitMQ while an adapter is
+unavailable, the Integration Worker and the adapter processes are decoupled: if the warehouse
+is slow or its adapter is restarting, the order is not lost and the checkout path is not
+blocked; the fulfillment state becomes pending or degraded and is retried later.
 
 Inventory updates also follow an asynchronous model. Warehouse and store systems publish stock
 changes, and the inventory adapter updates the availability view used by nopCommerce. Because
@@ -74,6 +94,7 @@ shipping adapter requests the label. If the provider fails, the label request is
 is marked as awaiting shipping, and automatic retry resumes when the provider recovers.
 
 \section{Data Ownership}
+\label{sec:data-ownership}
 
 Data ownership is explicit to avoid hidden coupling between systems. nopCommerce owns customer
 accounts, carts, checkout state, payment result state, and the canonical web order. External
@@ -90,44 +111,102 @@ availability, or shipping status, but these are projections used to support cust
 visibility. They are not shared databases and should be updated through integration messages or
 adapter APIs.
 
+Inventory projections extended in the target model carry additional metadata per stock record:
+\texttt{SourceSystem} (which external system last reported the value), \texttt{LastConfirmedUtc}
+(when the value was last confirmed), \texttt{IsStale} (set when the record exceeds its
+per-source freshness threshold), \texttt{ConflictFlag} (set when two sources disagree beyond a
+configured tolerance), and \texttt{PendingReconciliation} (set when a discrepancy is queued for
+resolution). These fields make inconsistent external state visible rather than silently
+propagating stale numbers to customers.
+
 \section{Cross-Cutting Concerns}
 
-\textbf{Reliability} shapes the design because warehouse, shipping, and store systems can fail
-independently. Integration work must be durable, retries must be controlled, and repeated
-messages must not create duplicate fulfillment or shipping actions.
+Reliability, observability, consistency, security, and modifiability are addressed by the
+decisions recorded in the ADRs rather than handled ad hoc. The transactional outbox (ADR 2)
+and idempotency keys (ADR 5) make integration durable and duplicate-safe: every fulfillment
+command and label request carries a correlation identifier and an idempotency key, so retries
+after timeout or uncertain acknowledgement cannot create duplicate warehouse picks or double
+labels. The retry policy with exponential backoff and circuit breaker (ADR 6) and the
+dead-letter queue with operator intervention model (ADR 7) ensure that degraded state is
+retained and visible rather than silently discarded. The adapter pattern with no shared
+database (ADR 3) enforces both security and modifiability: external systems interact only
+through adapters, APIs, or RabbitMQ events with controlled permissions, and a new POS,
+warehouse system, or shipping provider can be added by implementing or replacing one adapter
+without touching checkout logic or the nopCommerce data model.
 
-\textbf{Observability} is required because degraded state must be visible. Operators and support
-agents need to know whether an order is waiting for warehouse confirmation, shipping label
-creation, inventory reconciliation, or manual intervention.
+\section{Integration Layer Deployment Model}
 
-\textbf{Consistency} is handled through explicit stale-state handling and reconciliation rather
-than by assuming immediate consistency across all channels. This is necessary because web,
-warehouse, and store operations can observe stock at different times.
+The Integration Layer is a separately deployable .NET service or worker process. It is not
+embedded inside the nopCommerce web application, which means it can be restarted, scaled, or
+replaced without touching the commerce core. It shares the nopCommerce database only to read
+and write the outbox table and the integration-metadata tables; it does not access catalog,
+customer, or order tables directly.
 
-\textbf{Security and access control} remain important because surrounding systems should not get
-direct database access. They interact through adapters, APIs, or events with controlled
-permissions.
+The deployment model for this evolution has three units:
 
-\textbf{Modifiability} is supported by keeping external systems behind adapters. A new POS,
-warehouse, or shipping provider can be added by implementing or replacing an adapter without
-rewriting checkout or changing the core nopCommerce data model.
+\begin{enumerate}
+    \item \textbf{nopCommerce web application} --- the customer-facing storefront and admin
+    area. Writes orders and outbox records atomically. Exposes APIs consumed by adapters
+    through its existing Web API plugin.
+    \item \textbf{Integration Worker} --- a background service that reads the outbox, publishes
+    messages to RabbitMQ, processes inbound events from adapters, updates integration-status
+    projections, and runs the retry and dead-letter scheduler.
+    \item \textbf{Surrogate adapter services} --- lightweight services or WireMock stubs
+    representing the warehouse, shipping provider, POS, and ERP. Each one has its own network
+    identity so timeouts and outages can be simulated independently.
+\end{enumerate}
+
+The nopCommerce database is the shared persistence layer for the commerce core and the
+Integration Worker. This is acceptable because the outbox and metadata tables have a clear
+owner (the Integration Coordination context) and are not exposed to external adapters.
 
 \section{Main Architecture Diagram}
 
-\begin{figure}[h]
+The diagram is organized into five zones, each corresponding to a data-ownership boundary
+described in Section~\ref{sec:data-ownership}.
+
+\textbf{Zone 1 --- nopCommerce Commerce Core.} The left zone shows the customer-facing
+synchronous path: browser or mobile client sends HTTP requests to the nopCommerce web
+application, which processes cart, checkout, and payment result handling entirely within the
+monolith. The order and its outbox record are written in a single database transaction (ADR 2)
+before the HTTP response is returned. No external system is called during this path, so
+warehouse or shipping unavailability cannot block checkout.
+
+\textbf{Zone 2 --- Integration Worker and message broker.} The center zone shows the
+Integration Worker reading the outbox and publishing commands and events to RabbitMQ. RabbitMQ
+is the durable transport between the Integration Worker and all adapter processes. Arrows
+entering this zone from the right represent acknowledgements, fulfillment updates, stock
+changes, and tracking events arriving from adapters. The Integration Worker applies the retry
+policy (ADR 6), routes failures to the dead-letter queue (ADR 7), and writes integration-status
+projections consumed by the Support and Operations View.
+
+\textbf{Zone 3 --- Adapter services.} The right zone contains four independently deployable
+adapter processes: Warehouse Adapter, Inventory Adapter, Shipping Adapter, and Store Operations
+Adapter. Each adapter has its own RabbitMQ queue and its own outbound connection to the
+corresponding external system. The dashed boundaries in this zone indicate that each adapter
+can be stopped, replaced, or restarted without affecting the others or the commerce core.
+
+\textbf{Zone 4 --- External systems.} The outermost zone represents the systems that VerdeMart
+does not own: the WMS (OpenBoxes or equivalent), the shipping carrier API, the POS system, and
+the ERP. These systems communicate exclusively through their adapter; no arrow crosses directly
+from an external system into the nopCommerce zone.
+
+\textbf{Zone 5 --- Support and Operations View.} The bottom zone shows the read model populated
+by the Integration Worker. Operators and support agents query this view to inspect pending,
+retrying, failed, and dead-lettered work without accessing the nopCommerce database or the
+RabbitMQ management interface directly.
+
+The diagram uses two arrow styles to distinguish the two interaction modes. Solid arrows
+indicate synchronous HTTP calls, which are confined to the customer path and the nopCommerce
+internal layers. Dashed or open arrows indicate asynchronous message flows through RabbitMQ,
+which cover fulfillment commands, fulfillment updates, inventory changes, label requests, and
+tracking updates. This visual separation maps directly to Scenario 1 (warehouse unavailability
+must not block checkout) and Scenario 3 (customer path latency must not be affected by
+backend synchronization).
+
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.95\textwidth]{images/target-architecture-scenario-c.png}
 \caption{Target architecture for Scenario C: nopCommerce as an omnichannel commerce core.}
 \label{fig:target-architecture-scenario-c}
 \end{figure}
-
-The architecture diagram highlights the main design rule: customer-facing commerce remains
-inside nopCommerce, while operational coordination with warehouse, shipping, inventory, and
-store systems happens through explicit integration boundaries.
-
-It also distinguishes customer-facing synchronous flows from asynchronous integration flows.
-This separation is important because checkout and order visibility must remain responsive even
-when external systems are slow or unavailable. Data ownership is explicit: nopCommerce owns
-customers, carts, checkout, payments, and canonical web orders; the integration layer owns retry
-metadata, correlation identifiers, dead letters, and reconciliation records; external systems own
-their operational state.
