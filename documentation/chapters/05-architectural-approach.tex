@@ -39,15 +39,15 @@ This gives a direct trace from the problem to the architecture:
 \hline
 \textbf{ADD input} & \textbf{Scenario} & \textbf{Architectural consequence} \\
 \hline
-Availability & Scenario 1 & Avoid synchronous dependency on warehouse systems during checkout. \\
+Availability & QAS 1 & Avoid synchronous dependency on warehouse systems during checkout. \\
 \hline
-Consistency & Scenarios 2, 6 & Introduce explicit inventory state, stale-state visibility, conflict detection, and reconciliation. \\
+Consistency & QAS 2, QAS 6 & Introduce explicit inventory state, stale-state visibility, conflict detection, and reconciliation. \\
 \hline
-Performance & Scenario 3 & Keep checkout and order reads separate from slow integration processing. \\
+Performance & QAS 3 & Keep checkout and order reads separate from slow integration processing. \\
 \hline
-Recoverability & Scenario 4 & Store failed integration work durably and retry after dependency recovery. \\
+Recoverability & QAS 4 & Store failed integration work durably and retry after dependency recovery. \\
 \hline
-Modifiability & Scenario 5 & Add external systems through adapters instead of direct database coupling. \\
+Modifiability & QAS 5 & Add external systems through adapters instead of direct database coupling. \\
 \hline
 \end{tabular}
 \end{center}
@@ -109,16 +109,16 @@ quality attribute pressure. The surrounding systems are not added only because t
 business scenario; they are added because they create design pressure that nopCommerce must
 handle explicitly.
 
-The target architecture emphasises asynchronous integration because Scenario 1 requires that a
+The target architecture emphasises asynchronous integration because QAS 1 requires that a
 warehouse timeout does not block checkout. A direct synchronous call from checkout to the
 warehouse cannot satisfy that constraint, so accepted orders are propagated through a durable
 integration path.
 
-Status is made explicit for pending, degraded, failed, and recovered work because Scenarios 1
+Status is made explicit for pending, degraded, failed, and recovered work because QAS 1
 and 4 require support agents and operators to understand what is happening during warehouse or
-shipping failure. Retry and reconciliation are part of the architecture because Scenarios 2, 4,
+shipping failure. Retry and reconciliation are part of the architecture because QAS 2, QAS 4,
 and 6 assume stale inventory, contradictory cross-channel stock, failed label creation, and
-later recovery. External systems are connected through adapters because Scenario 5 requires new
+later recovery. External systems are connected through adapters because QAS 5 requires new
 operational channels to be added without rewriting checkout or sharing the nopCommerce database.
 
 The next chapter uses these ADD-driven tactics to define the target architecture and its
