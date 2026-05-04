@@ -57,7 +57,7 @@ view exposes:
     \item orders in \textit{pending}, \textit{retrying}, \textit{failed}, and
     \textit{dead-lettered} states, with the current retry count and the scheduled time for
     the next retry attempt;
-    \item the specific failure reason recorded by the adapter --- for example, warehouse
+    \item the specific failure reason recorded by the adapter, for example warehouse
     timeout, label provider HTTP error, or inventory conflict;
     \item correlation identifiers that link a web order to its warehouse, shipping, inventory,
     and POS integration records, making it possible to trace a single order across all systems;
@@ -146,13 +146,13 @@ customer, or order tables directly.
 The deployment model for this evolution has three units:
 
 \begin{enumerate}
-    \item \textbf{nopCommerce web application} --- the customer-facing storefront and admin
+    \item \textbf{nopCommerce web application}: the customer-facing storefront and admin
     area. Writes orders and outbox records atomically. Exposes APIs consumed by adapters
     through its existing Web API plugin.
-    \item \textbf{Integration Worker} --- a background service that reads the outbox, publishes
+    \item \textbf{Integration Worker}: a background service that reads the outbox, publishes
     messages to RabbitMQ, processes inbound events from adapters, updates integration-status
     projections, and runs the retry and dead-letter scheduler.
-    \item \textbf{Surrogate adapter services} --- lightweight services or WireMock stubs
+    \item \textbf{Surrogate adapter services}: lightweight services or WireMock stubs
     representing the warehouse, shipping provider, POS, and ERP. Each one has its own network
     identity so timeouts and outages can be simulated independently.
 \end{enumerate}
@@ -166,14 +166,14 @@ owner (the Integration Coordination context) and are not exposed to external ada
 The diagram is organized into five zones, each corresponding to a data-ownership boundary
 described in Section~\ref{sec:data-ownership}.
 
-\textbf{Zone 1 --- nopCommerce Commerce Core.} The top zone shows the customer-facing
+\textbf{Zone 1: nopCommerce Commerce Core.} The top zone shows the customer-facing
 synchronous path: browser or mobile client sends HTTP requests to the nopCommerce web
 application, which processes cart, checkout, and payment result handling entirely within the
 monolith. The order and its outbox record are written in a single database transaction (ADR 2)
 before the HTTP response is returned. No external system is called during this path, so
 warehouse or shipping unavailability cannot block checkout.
 
-\textbf{Zone 2 --- Integration Worker and message broker.} The middle integration zone shows the
+\textbf{Zone 2: Integration Worker and message broker.} The middle integration zone shows the
 Integration Worker reading the outbox and publishing commands and events to RabbitMQ. RabbitMQ
 is the durable transport between the Integration Worker and all adapter processes. Arrows
 entering this zone from the right represent acknowledgements, fulfillment updates, stock
@@ -181,18 +181,18 @@ changes, and tracking events arriving from adapters. The Integration Worker appl
 policy (ADR 6), routes failures to the dead-letter queue (ADR 7), and writes integration-status
 projections consumed by the Support and Operations View.
 
-\textbf{Zone 3 --- Adapter services.} The adapter zone contains four independently deployable
+\textbf{Zone 3: Adapter services.} The adapter zone contains four independently deployable
 adapter processes: Warehouse Adapter, Inventory Adapter, Shipping Adapter, and Store Operations
 Adapter. Each adapter has its own RabbitMQ queue and its own outbound connection to the
 corresponding external system. The dashed boundaries in this zone indicate that each adapter
 can be stopped, replaced, or restarted without affecting the others or the commerce core.
 
-\textbf{Zone 4 --- External systems.} The external-systems zone represents the systems that VerdeMart
+\textbf{Zone 4: External systems.} The external-systems zone represents the systems that VerdeMart
 does not own: the WMS (OpenBoxes or equivalent), the shipping carrier API, the POS system, and
 the ERP. These systems communicate exclusively through their adapter; no arrow crosses directly
 from an external system into the nopCommerce zone.
 
-\textbf{Zone 5 --- Support and Operations View.} The bottom zone shows the read model populated
+\textbf{Zone 5: Support and Operations View.} The bottom zone shows the read model populated
 by the Integration Worker. Operators and support agents query this view to inspect pending,
 retrying, failed, and dead-lettered work without accessing the nopCommerce database or the
 RabbitMQ management interface directly.
@@ -201,8 +201,8 @@ The diagram uses two arrow styles to distinguish the two interaction modes. Soli
 indicate synchronous HTTP calls, which are confined to the customer path and the nopCommerce
 internal layers. Dashed or open arrows indicate asynchronous message flows through RabbitMQ,
 which cover fulfillment commands, fulfillment updates, inventory changes, label requests, and
-tracking updates. This visual separation maps directly to Scenario 1 (warehouse unavailability
-must not block checkout) and Scenario 3 (customer path latency must not be affected by
+tracking updates. This visual separation maps directly to QAS 1 (warehouse unavailability
+must not block checkout) and QAS 3 (customer path latency must not be affected by
 backend synchronization).
 
 \begin{figure}[H]

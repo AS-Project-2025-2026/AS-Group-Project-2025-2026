@@ -2,7 +2,7 @@
 
 \section{Scenario Choice}
 
-This project follows \textbf{Scenario C --- Omnichannel Commerce Core}. VerdeMart Retail
+This project follows \textbf{Scenario C: Omnichannel Commerce Core}. VerdeMart Retail
 started by using nopCommerce as its online storefront, but the business now needs more than a
 web shop. It wants web sales, warehouse execution, shipping, store operations, support, and
 customer visibility to work together as part of one commerce experience.
@@ -45,13 +45,13 @@ The assignment permits the use of simulators or stubs for surrounding systems. F
 project, the following systems from the Scenario C ecosystem are represented:
 
 \begin{itemize}
-    \item \textbf{Warehouse execution system} (OpenBoxes or equivalent WMS) --- receives
+    \item \textbf{Warehouse execution system} (OpenBoxes or equivalent WMS): receives
     fulfillment requests, returns picked, packed, delayed, and failed acknowledgements.
-    \item \textbf{Shipping provider} (WireMock simulator) --- handles label creation and
+    \item \textbf{Shipping provider} (WireMock simulator): handles label creation and
     tracking updates; can be made unavailable to test the recoverability scenario.
-    \item \textbf{Store operations / POS} --- publishes in-store sale events and pickup state
+    \item \textbf{Store operations / POS}: publishes in-store sale events and pickup state
     changes that must update the online inventory view.
-    \item \textbf{ERP / back-office} (ERPNext or equivalent) --- receives order and financial
+    \item \textbf{ERP / back-office} (ERPNext or equivalent): receives order and financial
     summary events from the commerce core.
 \end{itemize}
 

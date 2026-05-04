@@ -6,7 +6,7 @@ attribute scenarios from Chapter 4 and to the bounded contexts defined in Chapte
 alternatives are included with explicit reasons, since the value of a decision is inseparable
 from understanding what was considered and set aside.
 
-\section{ADR 1 — Asynchronous Fulfillment Propagation}
+\section{ADR 1: Asynchronous Fulfillment Propagation}
 
 \subsection{Context}
 
@@ -15,8 +15,8 @@ In the current baseline, external communication happens either through synchrono
 or in-process events, both of which tie the checkout path directly to the availability of the
 downstream system.
 
-QA Scenario 1 (Availability under Warehouse Failure) requires that a warehouse timeout or
-rejection does not prevent a web order from being recorded. Scenario 4 (Recoverability after
+QAS 1 (Availability under Warehouse Failure) requires that a warehouse timeout or
+rejection does not prevent a web order from being recorded. QAS 4 (Recoverability after
 Shipping Outage) further requires that failed fulfillment and shipping work is retained and
 retried, not silently dropped. A synchronous warehouse call from within the checkout flow
 cannot satisfy either constraint.
@@ -42,7 +42,7 @@ synchronously depend on warehouse, POS, or shipping systems.
 after order creation is straightforward to implement, but it makes checkout latency and success
 rate dependent on warehouse response times. During peak traffic, a warehouse response exceeding
 ten seconds degrades the buying experience, and an outage blocks all order confirmations
-entirely. Scenario 1 rules this out.
+entirely. QAS 1 rules this out.
 
 \textbf{In-process event bus (current nopCommerce approach).} The existing
 \texttt{OrderPlacedEvent} fires in-process and awaits registered consumers. It works well for
@@ -60,7 +60,7 @@ states must be visible to support agents and operators. Integration tasks also n
 guarantees to prevent duplicate fulfillment commands when retries occur, which is the subject
 of ADR 5.
 
-\section{ADR 2 — Transactional Outbox for Durable Integration Task Publishing}
+\section{ADR 2: Transactional Outbox for Durable Integration Task Publishing}
 
 \subsection{Context}
 
@@ -116,9 +116,9 @@ polling interval introduces a small propagation delay between order creation and
 which is acceptable given the asynchronous design. The outbox table becomes
 integration-critical infrastructure and must be covered by database backups and operational
 monitoring. The publishing interval also determines the minimum propagation latency, which must
-remain within the bounds set by QA Scenario 1.
+remain within the bounds set by QAS 1.
 
-\section{ADR 3 — Adapter Pattern with No Shared Database Across External Boundaries}
+\section{ADR 3: Adapter Pattern with No Shared Database Across External Boundaries}
 
 \subsection{Context}
 
@@ -134,7 +134,7 @@ to evolve either side independently. It also creates ambiguous data ownership: i
 system writes directly to the nopCommerce stock table, it is unclear which system is the
 authoritative source and which is a consumer.
 
-QA Scenario 5 (Modifiability for New Operational Channels) requires that a new system can be
+QAS 5 (Modifiability for New Operational Channels) requires that a new system can be
 integrated through no more than one adapter boundary, without touching checkout logic or
 coupling to the nopCommerce schema.
 
@@ -181,7 +181,7 @@ Chapter 3: warehouse, POS, and carrier terminology does not leak into the core o
 The cost is that every new system needs an adapter implementation, but the scope of that work
 is predictable and isolated.
 
-\section{ADR 4 — nopCommerce Monolith Retained as the Commerce Core}
+\section{ADR 4: nopCommerce Monolith Retained as the Commerce Core}
 
 \subsection{Context}
 
@@ -215,10 +215,10 @@ result handling, and order history into a standalone service would produce an in
 deployment unit, but it removes a large body of stable, well-tested functionality from the
 monolith. More importantly, it would introduce a synchronous dependency between the storefront
 and the new order service at the point of checkout, which directly conflicts with the
-availability requirement in QA Scenario 1. The decomposition adds complexity without improving
+availability requirement in QAS 1. The decomposition adds complexity without improving
 any of the measured quality attributes.
 
-\textbf{Extract inventory as an independent service.} Given QA Scenario 2 (Consistency under
+\textbf{Extract inventory as an independent service.} Given QAS 2 (Consistency under
 Stale Inventory), a dedicated inventory service was considered. The scenario requires
 cross-channel stock visibility with freshness metadata and stale-state detection. The Inventory
 Adapter already provides this by updating projections inside nopCommerce through integration
@@ -242,11 +242,11 @@ catalog, admin, and plugin extensibility intact. The Integration Coordination co
 bounded to reliability and coordination, while adapter services remain boundary-specific and
 replaceable. The main limitation is that the commerce core cannot be scaled independently from
 its own checkout and order-management data model, but this is sufficient for the load levels
-identified in QA Scenario 3 and is not a constraint that justifies decomposition at this stage.
+identified in QAS 3 and is not a constraint that justifies decomposition at this stage.
 This decision does not preclude future extraction of read-heavy services such as the catalog or
 order-status projection if load patterns justify it later.
 
-\section{ADR 5 --- Idempotency Key Strategy for Integration Messages}
+\section{ADR 5: Idempotency Key Strategy for Integration Messages}
 
 \subsection{Context}
 
@@ -254,7 +254,7 @@ ADR 1 establishes asynchronous fulfillment, and ADR 2 guarantees at-least-once d
 through the outbox. At-least-once delivery means that the same fulfillment or label-creation
 message may be delivered more than once during retries. If the warehouse or shipping adapter
 processes the same message twice, the result can be a duplicate fulfillment request or a
-second shipping label for the same order --- both of which cause operational problems.
+second shipping label for the same order, both of which cause operational problems.
 
 \subsection{Decision}
 
@@ -284,7 +284,7 @@ window creates a bounded storage requirement for the key-outcome table. The risk
 duplicate outside the 48-hour window is low for the use case, since retries for any single
 message should complete well within that period.
 
-\section{ADR 6 --- Retry Policy and Circuit Breaker for Adapter Calls}
+\section{ADR 6: Retry Policy and Circuit Breaker for Adapter Calls}
 
 \subsection{Context}
 
@@ -326,7 +326,7 @@ must be informed when a circuit opens, because it means fulfillment work has sto
 to the affected adapter. This requires a monitoring alert and a visible circuit-state indicator
 in the Support and Operations View.
 
-\section{ADR 7 --- Dead-Letter Queue and Operator Intervention Model}
+\section{ADR 7: Dead-Letter Queue and Operator Intervention Model}
 
 \subsection{Context}
 

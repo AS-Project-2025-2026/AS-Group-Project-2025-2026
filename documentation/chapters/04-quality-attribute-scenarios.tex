@@ -20,7 +20,7 @@ The scenarios are driven by five architectural concerns:
     \item \textbf{Modifiability:} new operational channels must be integrated without rewriting checkout or sharing the nopCommerce database.
 \end{itemize}
 
-\section{Scenario 1 - Availability under Warehouse Failure}
+\section{Scenario 1: Availability under Warehouse Failure}
 
 \textbf{Driver:} Availability and operational continuity.
 
@@ -44,7 +44,7 @@ Response measure & No paid order is lost; no duplicate fulfillment request is se
 \end{tabular}
 \end{center}
 
-\section{Scenario 2 - Consistency under Stale Inventory}
+\section{Scenario 2: Consistency under Stale Inventory}
 
 \textbf{Driver:} Consistency and recoverable inventory state.
 
@@ -68,7 +68,7 @@ Response measure & Product pages show stale stock status within 30 seconds of th
 \end{tabular}
 \end{center}
 
-\section{Scenario 3 - Performance during Omnichannel Order Bursts}
+\section{Scenario 3: Performance during Omnichannel Order Bursts}
 
 \textbf{Driver:} Performance under customer-facing load.
 
@@ -92,7 +92,7 @@ Response measure & Checkout p95 latency remains below 2 seconds; order-status re
 \end{tabular}
 \end{center}
 
-\section{Scenario 4 - Recoverability after Shipping Outage}
+\section{Scenario 4: Recoverability after Shipping Outage}
 
 \textbf{Driver:} Recoverability after external dependency failure.
 
@@ -116,7 +116,7 @@ Response measure & 100\% of failed label requests are retained in the retry queu
 \end{tabular}
 \end{center}
 
-\section{Scenario 5 - Modifiability for New Operational Channels}
+\section{Scenario 5: Modifiability for New Operational Channels}
 
 \textbf{Driver:} Modifiability and controlled integration growth.
 
@@ -140,7 +140,7 @@ Response measure & The new integration requires changes in no more than one adap
 \end{tabular}
 \end{center}
 
-\section{Scenario 6 --- Inventory Reconciliation after Cross-Channel Conflict}
+\section{Scenario 6: Inventory Reconciliation after Cross-Channel Conflict}
 
 \textbf{Driver:} Consistency under contradictory external state.
 

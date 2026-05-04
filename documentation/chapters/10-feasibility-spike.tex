@@ -96,7 +96,7 @@ it.
 \setlength{\tabcolsep}{4pt}
 \renewcommand{\arraystretch}{1.15}
 \begin{center}
-\begin{tabular}{|p{0.28\textwidth}|p{0.62\textwidth}|}
+\begin{tabular}{|p{0.32\textwidth}|p{0.58\textwidth}|}
 \hline
 \textbf{Evidence source} & \textbf{Observation} \\
 \hline
@@ -131,7 +131,7 @@ view, but not provider retry state by itself. \\
 \end{center}
 \endgroup
 
-\section{Smallest Implementation Slice for the Final Demo}
+\section{Minimum Implementation Slice for the Final Demo}
 
 If implementation time is limited, the final demo should not attempt the whole target
 architecture. The smallest useful slice is:
@@ -151,7 +151,7 @@ architecture. The smallest useful slice is:
     recovered states for one order.
 \end{enumerate}
 
-This slice directly demonstrates QA Scenario 1: checkout records the order, warehouse failure
+This slice directly demonstrates QAS 1: checkout records the order, warehouse failure
 does not block the customer path, the fulfillment request is retained, and recovery is visible
 after the dependency becomes available again. Shipping, inventory conflict handling, and
 dead-letter intervention can remain documented target behaviour if there is not enough time to

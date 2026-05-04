@@ -60,7 +60,7 @@ unavailable, or return conflicting data.
 The internal event system publishes events in-process to registered consumers and awaits each
 one. If a consumer fails, the error is logged and execution continues. There is no message
 broker and no standard durable integration retry, replay, or dead-letter mechanism. This is
-fine for cache invalidation or plugin reactions --- it is not sufficient for reliable
+fine for cache invalidation or plugin reactions, but it is not sufficient for reliable
 integration with external systems.
 
 \section{Scenario C Readiness Assessment}

@@ -19,7 +19,7 @@ visibility layer.
 \label{fig:evolution-roadmap}
 \end{figure}
 
-\subsection{Phase 1 — Outbox and Asynchronous Propagation}
+\subsection{Phase 1: Outbox and Asynchronous Propagation}
 
 An outbox table is added to the nopCommerce database. Order placement writes an integration
 task in the same transaction as the order, and a scheduled task publishes unpublished records
@@ -32,7 +32,7 @@ During this phase, the outbox coexists with the existing in-process event bus. T
 and email notifications. The outbox adds a durable external path alongside it, not in place
 of it.
 
-\subsection{Phase 2 — Warehouse Adapter and Degraded-State Handling}
+\subsection{Phase 2: Warehouse Adapter and Degraded-State Handling}
 
 With a working outbox, the Warehouse Adapter is built and connected. This phase introduces the
 retry policy, idempotency key handling, and the integration state model: pending, sent,
@@ -44,7 +44,7 @@ The shipping adapter follows the same pattern and can be introduced in parallel 
 phase. System stubs coexist with the adapters throughout; real warehouse or carrier systems
 are not required to validate the architecture.
 
-\subsection{Phase 3 — Inventory Projection and Stale-State Visibility}
+\subsection{Phase 3: Inventory Projection and Stale-State Visibility}
 
 The existing nopCommerce stock model is extended with source and freshness metadata. The
 Inventory Adapter receives stock updates from warehouse and store systems and updates the
@@ -57,7 +57,7 @@ a visibility layer on top of them. Checkout continues to revalidate stock using 
 model; the projection is what operators and the storefront use to communicate freshness and
 discrepancy state.
 
-\subsection{Phase 4 — Operational Visibility}
+\subsection{Phase 4: Operational Visibility}
 
 The operational read model aggregates the integration states produced in Phases 2 and 3 and
 exposes them through the nopCommerce admin area or an equivalent support-facing view. This
