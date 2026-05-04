@@ -64,7 +64,10 @@ QAS 1, QAS 4; ADR 7 \\
 \hline
 Outbox polling interval introduces propagation delay under normal operation &
 L &
-The \texttt{ScheduleTaskRunner} caps its distributed lock expiry at 299 seconds regardless of the configured task interval. Under normal conditions this means a fulfillment command may take up to five minutes to reach the warehouse after the order is accepted. No orders are lost and checkout is unaffected, but operators and customers will observe a delay between order confirmation and warehouse notification. This is acceptable by design and must be communicated as an expected operational characteristic rather than treated as a failure. &
+The Integration Worker processes outbox records on a polling interval. Under normal conditions
+this may introduce a short delay between order confirmation and warehouse notification. No
+orders are lost and checkout is unaffected, but the delay must be visible and communicated as an
+expected characteristic of asynchronous integration. &
 QAS 1; ADR 2 \\
 \hline
 \end{tabular}
