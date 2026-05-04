@@ -211,3 +211,62 @@ backend synchronization).
 \caption{Target architecture for Scenario C: nopCommerce as an omnichannel commerce core.}
 \label{fig:target-architecture-scenario-c}
 \end{figure}
+
+\section{Runtime Interaction: Warehouse Failure and Recovery}
+
+The static architecture diagram shows which components exist and how they are connected. This
+section describes what happens at runtime when QA Scenario~1 is exercised: a customer places
+an order while the warehouse system is unavailable.
+
+\textbf{Step 1 --- Checkout and atomic commit.}
+The customer submits the checkout form. \texttt{OrderProcessingService} validates the cart,
+processes payment, creates the order, and writes one outbox record representing
+\texttt{FulfillmentRequested} in the same database transaction. The HTTP response is returned
+to the customer as soon as the transaction commits. At this point, the warehouse system has
+not been contacted and its availability is irrelevant to the customer.
+
+\textbf{Step 2 --- Integration Worker picks up the outbox record.}
+On its next polling cycle, the Integration Worker reads the unpublished outbox record, assigns
+a correlation identifier and idempotency key, and publishes a \texttt{FulfillmentRequested}
+command to the RabbitMQ exchange dedicated to warehouse work. The outbox record is marked as
+sent.
+
+\textbf{Step 3 --- Warehouse Adapter attempts delivery and fails.}
+The Warehouse Adapter consumes the command from its queue and calls the WMS API. The WMS is
+unavailable and the call times out. The Adapter reports failure to the Integration Worker,
+which marks the outbox record as retrying and schedules the next attempt according to the
+exponential backoff policy defined in ADR~6. The Support and Operations View is updated to
+show the order in a pending warehouse confirmation state.
+
+\textbf{Step 4 --- Retry loop and circuit breaker.}
+The Integration Worker retries the delivery at increasing intervals. If five consecutive
+attempts from the Warehouse Adapter all fail, the circuit breaker opens and blocks further
+attempts for the cooldown period. An alert is sent to the operations team. The order remains
+visible in the Support and Operations View with its current retry count and the scheduled time
+for the next attempt.
+
+\textbf{Step 5 --- Warehouse recovers.}
+When the WMS becomes available again, the circuit breaker probe attempt succeeds, the circuit
+closes, and the retry loop resumes. The Warehouse Adapter delivers the \texttt{FulfillmentRequested}
+command successfully. The WMS acknowledges the request, and the Adapter publishes a
+\texttt{FulfillmentAccepted} event back to the Integration Worker.
+
+\textbf{Step 6 --- Integration Worker records recovery.}
+The Integration Worker receives the acknowledgement, marks the outbox record as accepted, and
+updates the order's integration status projection. The Support and Operations View transitions
+the order from retrying to accepted. The idempotency key stored on the outbox record ensures
+that any duplicate delivery caused by uncertain acknowledgement during the retry loop does not
+create a second fulfillment request at the warehouse.
+
+Figure~\ref{fig:sequence-warehouse-failure} shows this sequence. Steps 1 and 2 happen within
+the customer request latency budget. Steps 3 through 6 happen entirely outside the customer
+request path, which is why warehouse unavailability cannot block or degrade the checkout
+experience.
+
+\begin{figure}[htp]
+\centering
+\includegraphics[width=0.72\textwidth]{images/sequence-warehouse-failure.png}
+\caption{Runtime sequence for QA Scenario 1: order placement under warehouse failure and
+subsequent recovery.}
+\label{fig:sequence-warehouse-failure}
+\end{figure}
