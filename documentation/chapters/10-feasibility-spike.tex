@@ -152,11 +152,9 @@ The remaining findings --- the inventory and shipment fields available on
 were confirmed by inspecting the corresponding entity classes. They confirm that the extension
 model described in Chapter~6 is additive rather than structural: the commerce records are
 already there, and only integration metadata fields are missing.
+\section{Draft Implementation Scope}
 
-\section{Minimum Implementation Slice for the Final Demo}
-
-If implementation time is limited, the final demo should not attempt the whole target
-architecture. The smallest useful slice is:
+The implementation spike focuses on the smallest end-to-end slice that proves reliable asynchronous fulfillment propagation from nopCommerce to an external warehouse dependency.
 
 \begin{enumerate}
     \item Add an \texttt{OmnichannelIntegrationTask} or outbox table with order ID, message
@@ -176,6 +174,5 @@ architecture. The smallest useful slice is:
 This slice directly demonstrates QA Scenario 1: checkout records the order, warehouse failure
 does not block the customer path, the fulfillment request is retained as an observable record,
 and recovery is visible after the dependency becomes available again. Shipping, inventory
-conflict handling, and dead-letter intervention can remain documented target behaviour if
-implementation time is limited, because the spike has confirmed that the seams for all of them
-already exist in the codebase.
+conflict handling, and dead-letter intervention remain documented target behaviour, while this
+spike confirms that the same architectural seams can support them.

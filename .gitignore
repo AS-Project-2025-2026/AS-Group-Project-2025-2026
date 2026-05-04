@@ -167,6 +167,7 @@ $RECYCLE.BIN/
 ###########
 glob:*.user
 *.patch
+documentation/AS - Group Project.pdf
 *.hg
 src/Presentation/Nop.Web/.config/*
 src/Presentation/Nop.Web/App_Data/Gmail/AuthStore/*
