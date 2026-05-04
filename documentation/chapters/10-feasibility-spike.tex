@@ -93,8 +93,8 @@ repository.
 
 \textbf{Insertion point in \texttt{OrderProcessingService}.}
 The \texttt{PlaceOrderAsync} method in
-\texttt{Nop.Services/Orders/OrderProcessingService.cs} ends its successful path with the
-following sequence (lines 1608--1621):
+\nolinkurl{Nop.Services/Orders/OrderProcessingService.cs}
+ends its successful path with the following sequence (lines 1608--1621):
 
 \begin{verbatim}
     //notifications
@@ -113,8 +113,9 @@ record inserted here --- in the same transaction scope --- would satisfy the ato
 required by ADR~2 without touching the checkout flow or the payment handling path.
 
 \textbf{Durability gap in \texttt{EventPublisher}.}
-The \texttt{PublishAsync} method in \texttt{Nop.Services/Events/EventPublisher.cs} resolves
-registered consumers and dispatches each one in sequence:
+The \texttt{PublishAsync} method in
+\nolinkurl{Nop.Services/Events/EventPublisher.cs}
+resolves registered consumers and dispatches each one in sequence:
 
 \begin{verbatim}
     foreach (var consumer in consumers)
@@ -131,7 +132,8 @@ Exceptions are caught, logged, and swallowed. No failed work is persisted as a r
 record. This is the structural gap that ADR~2 exists to close.
 
 \textbf{Locking behaviour in \texttt{ScheduleTaskRunner}.}
-The \texttt{ExecuteAsync} method in \texttt{Nop.Services/ScheduleTasks/ScheduleTaskRunner.cs}
+The \texttt{ExecuteAsync} method in
+\nolinkurl{Nop.Services/ScheduleTasks/ScheduleTaskRunner.cs}
 skips execution if a previous run is still in progress and otherwise acquires a distributed
 lock before executing:
 
@@ -148,7 +150,8 @@ This guarantees that an outbox publisher or retry task does not overlap with a p
 execution, which is the minimum safety property required for the outbox publishing loop.
 
 The remaining findings --- the inventory and shipment fields available on
-\texttt{ProductWarehouseInventory}, \texttt{StockQuantityHistory}, and \texttt{Shipment} ---
+\texttt{Product\allowbreak Warehouse\allowbreak Inventory},
+\texttt{Stock\allowbreak Quantity\allowbreak History}, and \texttt{Shipment} ---
 were confirmed by inspecting the corresponding entity classes. They confirm that the extension
 model described in Chapter~6 is additive rather than structural: the commerce records are
 already there, and only integration metadata fields are missing.
