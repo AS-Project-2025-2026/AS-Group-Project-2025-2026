@@ -11,15 +11,16 @@ that work outside the customer checkout path.
 This chapter is intentionally scoped. It does not claim that the outbox, Integration Worker,
 RabbitMQ queues, warehouse adapter, retry policy, dead-letter queue, or support dashboard are
 already implemented. Those elements are part of the proposed target architecture. The spike
-checks whether they can be introduced without a rewrite and identifies the smallest useful
-implementation slice for the final delivery.
+checks whether they can be introduced without a rewrite, and whether the nopCommerce source
+already contains the specific seams that ADR~2 and the evolution roadmap depend on.
 
 \section{What Was Tested}
 
-The spike used source-code inspection and report compilation rather than a full runtime
-implementation. This was appropriate for the checkpoint because the main risk was architectural
-fit: whether nopCommerce has a stable order-placement seam and background execution mechanism
-that can support the proposed asynchronous integration path.
+The spike was conducted by reading the nopCommerce source directly against the classes named
+in the ADRs, rather than building a full runtime implementation. This was appropriate for the
+checkpoint because the main risk was architectural fit, not runtime behaviour: the question was
+whether nopCommerce already exposes a stable order-placement seam and a background execution
+mechanism credible enough to support the proposed asynchronous integration path.
 
 \begingroup
 \small
@@ -57,24 +58,20 @@ integration-state metadata. \\
 
 \section{What Worked}
 
-The main result is that the first target step is feasible without decomposing nopCommerce.
-The order-placement path already has a clear point where integration work can be created after
-the order exists. The current \texttt{OrderPlacedEvent} is not durable enough for Scenario C,
-but it identifies the correct domain moment: the order has been accepted and can now be
-propagated to fulfillment.
+The order-placement seam sits at exactly the right level. It fires after the database commit,
+which is where ADR~2's atomicity guarantee needs to be anchored: an outbox record can be
+written in the same transaction without touching the checkout flow or the payment handling path.
 
-The scheduled-task infrastructure is also useful. It already supports background execution,
-interval checks, and locking to avoid overlapping runs. This makes it a credible mechanism for
-a first outbox publisher in the final demo. A production version could later move that work to
-a separately deployable Integration Worker, but a scheduled task is sufficient for proving the
-architectural tactic in a focused assignment spike.
+The locking and skip-if-running behaviour of \texttt{ScheduleTaskRunner} is exactly what an
+outbox publisher or retry task requires to avoid overlapping execution. A production Integration
+Worker would run as a separately deployable process, but a scheduled task is architecturally
+sufficient to prove the tactic without introducing a new deployment unit prematurely.
 
-The stock and shipment models provide enough baseline data to build projections. Existing
-inventory records already distinguish stock quantity from reserved quantity, and stock history
-records can explain local changes. Shipment records already carry tracking and lifecycle dates.
-The missing part is not the basic commerce model; it is integration metadata: source system,
-last confirmed time, stale state, retry count, idempotency key, failure reason, and
-reconciliation state.
+The gap in the existing stock and shipment records is not structural but additive. The commerce
+model already carries the right quantity and lifecycle fields; what is missing is integration
+metadata --- a source identifier, freshness timestamp, stale flag, conflict flag, and retry
+count. Adding those fields extends the existing model rather than replacing it, which confirms
+the data ownership approach described in Chapter~6.
 
 \section{What Did Not Work Yet}
 
@@ -82,54 +79,79 @@ The current implementation does not contain a transactional outbox, RabbitMQ int
 warehouse adapter, shipping adapter, retry scheduler, dead-letter table, or operator-facing
 integration dashboard. Therefore, the current codebase cannot yet demonstrate the mandatory
 Scenario C pressure point at runtime. If the warehouse is unavailable today, there is no
-standard durable fulfillment command that remains pending and retries automatically.
+durable fulfillment command that remains pending and retries automatically after recovery.
 
-The in-process event publisher is specifically not sufficient as the external integration
-mechanism. It awaits consumers in the same process and logs failures, but it does not preserve
-failed work as a business-visible state. This confirms the need for ADR 2 rather than replacing
-it.
+The in-process event mechanism identified in the spike as insufficient for durable external
+integration is not a deficiency in nopCommerce's design for its intended purpose. It is a
+structural gap relative to Scenario C, and it is precisely what ADR~2 addresses. The spike
+therefore confirms the need for the outbox rather than raising doubt about the approach.
 
 \section{Evidence}
 
-\begingroup
-\small
-\setlength{\tabcolsep}{4pt}
-\renewcommand{\arraystretch}{1.15}
-\begin{center}
-\begin{tabular}{|p{0.32\textwidth}|p{0.58\textwidth}|}
-\hline
-\textbf{Evidence source} & \textbf{Observation} \\
-\hline
-\texttt{OrderProcessingService} &
-The successful order-placement path saves the order, moves cart items into order items, resets
-checkout data, records customer activity, publishes \texttt{OrderPlacedEvent}, checks order
-status, and processes paid orders. This is the natural insertion point for creating an outbox
-record. \\
-\hline
-\texttt{EventPublisher} &
-The publisher resolves in-process consumers and awaits each handler. Exceptions are logged and
-processing continues, but failed work is not retained as retryable integration state. \\
-\hline
-\texttt{ScheduleTaskRunner} &
-Scheduled tasks update start/end timestamps, avoid overlapping execution, and run under a
-lock. This supports a simple outbox publisher or retry task for the demo. \\
-\hline
-Warehouse inventory &
-The existing product-warehouse inventory record stores stock quantity and reserved quantity,
-which can support warehouse-aware availability projections. \\
-\hline
-\texttt{StockQuantityHistory} &
-Stock changes already have quantity adjustment, current stock quantity, message, creation time,
-product, combination, and optional warehouse identifiers. \\
-\hline
-\texttt{Shipment} &
-Shipments already include order, tracking number, shipped date, delivery date,
-ready-for-pickup date, and creation date. This can support a projected shipping/fulfillment
-view, but not provider retry state by itself. \\
-\hline
-\end{tabular}
-\end{center}
-\endgroup
+The three most critical findings are supported by direct source references from the nopCommerce
+repository.
+
+\textbf{Insertion point in \texttt{OrderProcessingService}.}
+The \texttt{PlaceOrderAsync} method in
+\texttt{Nop.Services/Orders/OrderProcessingService.cs} ends its successful path with the
+following sequence (lines 1608--1621):
+
+\begin{verbatim}
+    //notifications
+    await SendNotificationsAndSaveNotesAsync(order);
+    //reset checkout data
+    await _customerService.ResetCheckoutDataAsync(...);
+    await _customerActivityService.InsertActivityAsync(...);
+    //raise event
+    await _eventPublisher.PublishAsync(new OrderPlacedEvent(order));
+    //check order status
+    await CheckOrderStatusAsync(order);
+\end{verbatim}
+
+The order and its line items are already committed to the database before this point. An outbox
+record inserted here --- in the same transaction scope --- would satisfy the atomicity guarantee
+required by ADR~2 without touching the checkout flow or the payment handling path.
+
+\textbf{Durability gap in \texttt{EventPublisher}.}
+The \texttt{PublishAsync} method in \texttt{Nop.Services/Events/EventPublisher.cs} resolves
+registered consumers and dispatches each one in sequence:
+
+\begin{verbatim}
+    foreach (var consumer in consumers)
+    {
+        try { await consumer.HandleEventAsync(@event); }
+        catch (Exception exception)
+        {
+            await logger.ErrorAsync(exception.Message, exception);
+        }
+    }
+\end{verbatim}
+
+Exceptions are caught, logged, and swallowed. No failed work is persisted as a retryable
+record. This is the structural gap that ADR~2 exists to close.
+
+\textbf{Locking behaviour in \texttt{ScheduleTaskRunner}.}
+The \texttt{ExecuteAsync} method in \texttt{Nop.Services/ScheduleTasks/ScheduleTaskRunner.cs}
+skips execution if a previous run is still in progress and otherwise acquires a distributed
+lock before executing:
+
+\begin{verbatim}
+    if (IsTaskAlreadyRunning(scheduleTask))
+        return;
+    ...
+    await _locker.PerformActionWithLockAsync(
+        scheduleTask.Type, expiration,
+        () => PerformTaskAsync(scheduleTask));
+\end{verbatim}
+
+This guarantees that an outbox publisher or retry task does not overlap with a previous
+execution, which is the minimum safety property required for the outbox publishing loop.
+
+The remaining findings --- the inventory and shipment fields available on
+\texttt{ProductWarehouseInventory}, \texttt{StockQuantityHistory}, and \texttt{Shipment} ---
+were confirmed by inspecting the corresponding entity classes. They confirm that the extension
+model described in Chapter~6 is additive rather than structural: the commerce records are
+already there, and only integration metadata fields are missing.
 
 \section{Minimum Implementation Slice for the Final Demo}
 
@@ -151,8 +173,9 @@ architecture. The smallest useful slice is:
     recovered states for one order.
 \end{enumerate}
 
-This slice directly demonstrates QAS 1: checkout records the order, warehouse failure
-does not block the customer path, the fulfillment request is retained, and recovery is visible
-after the dependency becomes available again. Shipping, inventory conflict handling, and
-dead-letter intervention can remain documented target behaviour if there is not enough time to
-implement them.
+This slice directly demonstrates QA Scenario 1: checkout records the order, warehouse failure
+does not block the customer path, the fulfillment request is retained as an observable record,
+and recovery is visible after the dependency becomes available again. Shipping, inventory
+conflict handling, and dead-letter intervention can remain documented target behaviour if
+implementation time is limited, because the spike has confirmed that the seams for all of them
+already exist in the codebase.
