@@ -69,6 +69,7 @@ public partial class NopStartup : INopStartup
         services.AddScoped<IReturnRequestModelFactory, ReturnRequestModelFactory>();
         services.AddScoped<IReviewTypeModelFactory, ReviewTypeModelFactory>();
         services.AddScoped<IScheduleTaskModelFactory, ScheduleTaskModelFactory>();
+        services.AddScoped<IOperationsModelFactory, OperationsModelFactory>();
         services.AddScoped<ISecurityModelFactory, SecurityModelFactory>();
         services.AddScoped<ISettingModelFactory, SettingModelFactory>();
         services.AddScoped<IShippingModelFactory, ShippingModelFactory>();

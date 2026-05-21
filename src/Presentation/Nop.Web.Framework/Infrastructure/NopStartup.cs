@@ -195,6 +195,7 @@ public partial class NopStartup : INopStartup
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IOrderReportService, OrderReportService>();
         services.AddScoped<IOrderProcessingService, OrderProcessingService>();
+        services.AddScoped<Nop.Services.Integration.IIntegrationRecordService, Nop.Services.Integration.IntegrationRecordService>();
         services.AddScoped<IOrderTotalCalculationService, OrderTotalCalculationService>();
         services.AddScoped<IReturnRequestService, ReturnRequestService>();
         services.AddScoped<IRewardPointService, RewardPointService>();

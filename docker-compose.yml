@@ -3,6 +3,8 @@ services:
     build: .
     ports:
       - "8080:80"
+    volumes:
+      - nopcommerce_app_data:/app/App_Data
     depends_on:
       nopcommerce_database:
         condition: service_healthy
@@ -81,3 +83,4 @@ services:
 
 volumes:
   nopcommerce_data:
+  nopcommerce_app_data:

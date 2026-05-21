@@ -800,6 +800,14 @@ public partial class AdminMenu : IAdminMenu
                         },
                         new()
                         {
+                            SystemName = "Integration Operations",
+                            Title = "Integration Operations",
+                            PermissionNames = new List<string> { StandardPermission.System.MANAGE_MAINTENANCE },
+                            Url = GetMenuItemUrl("Operations", "List"),
+                            IconClass = "far fa-dot-circle"
+                        },
+                        new()
+                        {
                             SystemName = "Search engine friendly names",
                             Title = await _localizationService.GetResourceAsync("Admin.System.SeNames"),
                             PermissionNames = new List<string> { StandardPermission.System.MANAGE_MAINTENANCE },

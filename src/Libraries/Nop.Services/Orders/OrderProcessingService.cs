@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using System.Transactions;
 using Newtonsoft.Json;
 using Nop.Core;
 using Nop.Core.Caching;
@@ -30,6 +31,7 @@ using Nop.Services.Security;
 using Nop.Services.Shipping;
 using Nop.Services.Stores;
 using Nop.Services.Tax;
+using Nop.Services.Integration;
 using Nop.Services.Vendors;
 
 namespace Nop.Services.Orders;
@@ -80,6 +82,7 @@ public partial class OrderProcessingService : IOrderProcessingService
     protected readonly IStoreService _storeService;
     protected readonly ITaxService _taxService;
     protected readonly IVendorService _vendorService;
+    protected readonly IIntegrationRecordService _integrationRecordService;
     protected readonly IWebHelper _webHelper;
     protected readonly IWorkContext _workContext;
     protected readonly IWorkflowMessageService _workflowMessageService;
@@ -133,6 +136,7 @@ public partial class OrderProcessingService : IOrderProcessingService
         IStoreService storeService,
         ITaxService taxService,
         IVendorService vendorService,
+        IIntegrationRecordService integrationRecordService,
         IWebHelper webHelper,
         IWorkContext workContext,
         IWorkflowMessageService workflowMessageService,
@@ -182,6 +186,7 @@ public partial class OrderProcessingService : IOrderProcessingService
         _storeService = storeService;
         _taxService = taxService;
         _vendorService = vendorService;
+        _integrationRecordService = integrationRecordService;
         _webHelper = webHelper;
         _workContext = workContext;
         _workflowMessageService = workflowMessageService;
@@ -1586,24 +1591,37 @@ public partial class OrderProcessingService : IOrderProcessingService
 
                 if (processPaymentResult.Success)
                 {
-                    var order = await SaveOrderDetailsAsync(processPaymentRequest, processPaymentResult,
-                        placeOrderContainer);
+                    // All DB writes (order, items, history, outbox) share one ambient transaction
+                    // so that the order and its integration task are atomically committed — ADR 2.
+                    Order order;
+                    using (var tx = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled))
+                    {
+                        order = await SaveOrderDetailsAsync(processPaymentRequest, processPaymentResult,
+                            placeOrderContainer);
+
+                        //move shopping cart items to order items
+                        await MoveShoppingCartItemsToOrderItemsAsync(placeOrderContainer, order);
+
+                        //discount usage history
+                        await SaveDiscountUsageHistoryAsync(placeOrderContainer, order);
+
+                        //gift card usage history
+                        await SaveGiftCardUsageHistoryAsync(placeOrderContainer, order);
+
+                        //recurring orders
+                        if (placeOrderContainer.IsRecurringShoppingCart)
+                            await CreateFirstRecurringPaymentAsync(processPaymentRequest, order);
+
+                        // Outbox record committed in the same transaction as the order (ADR 2).
+                        // Either both exist or neither does — no paid order is silently lost.
+                        await _integrationRecordService.CreateFulfillmentOutboxRecordAsync(order);
+
+                        tx.Complete();
+                    }
+
                     result.PlacedOrder = order;
 
-                    //move shopping cart items to order items
-                    await MoveShoppingCartItemsToOrderItemsAsync(placeOrderContainer, order);
-
-                    //discount usage history
-                    await SaveDiscountUsageHistoryAsync(placeOrderContainer, order);
-
-                    //gift card usage history
-                    await SaveGiftCardUsageHistoryAsync(placeOrderContainer, order);
-
-                    //recurring orders
-                    if (placeOrderContainer.IsRecurringShoppingCart)
-                        await CreateFirstRecurringPaymentAsync(processPaymentRequest, order);
-
-                    //notifications
+                    //notifications (side-effect — outside the transaction intentionally)
                     await SendNotificationsAndSaveNotesAsync(order);
 
                     //reset checkout data
@@ -1613,7 +1631,7 @@ public partial class OrderProcessingService : IOrderProcessingService
                         string.Format(await _localizationService.GetResourceAsync("ActivityLog.PublicStore.PlaceOrder"),
                             order.Id), order);
 
-                    //raise event       
+                    //raise event
                     await _eventPublisher.PublishAsync(new OrderPlacedEvent(order));
 
                     //check order status

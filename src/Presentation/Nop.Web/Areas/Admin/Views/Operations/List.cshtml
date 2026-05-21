@@ -1,0 +1,182 @@
+@model Nop.Web.Areas.Admin.Models.Operations.OperationsSearchModel
+
+@{
+    ViewBag.PageTitle = "Integration Operations";
+    NopHtml.SetActiveMenuItemSystemName("Integration Operations");
+}
+
+<div class="content-header clearfix">
+    <h1 class="float-left">Integration Operations</h1>
+</div>
+
+<section class="content">
+    <div class="container-fluid">
+        <div class="cards-group">
+            <div class="card card-default">
+                <div class="card-body">
+                    <ul class="nav nav-tabs" id="operations-tabs">
+                        <li class="nav-item">
+                            <a class="nav-link active" data-bs-toggle="tab" href="#tab-outbox">Outbox</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#tab-deadletter">Dead Letters</a>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+
+                        <div class="tab-pane active" id="tab-outbox">
+                            <div class="card card-default">
+                                <div class="card-body">
+                                    @await Html.PartialAsync("Table", new DataTablesModel
+                                    {
+                                        Name = "outbox-grid",
+                                        UrlRead = new DataUrl("OutboxList", "Operations", null),
+                                        Length = Model.OutboxSearch.PageSize,
+                                        LengthMenu = Model.OutboxSearch.AvailablePageSizes,
+                                        ColumnCollection = new List<ColumnProperty>
+                                        {
+                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.Id))
+                                            {
+                                                Title = "Id",
+                                                Width = "60"
+                                            },
+                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.OrderId))
+                                            {
+                                                Title = "Order"
+                                            },
+                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.MessageType))
+                                            {
+                                                Title = "Message Type"
+                                            },
+                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.Status))
+                                            {
+                                                Title = "Status"
+                                            },
+                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.RetryCount))
+                                            {
+                                                Title = "Retries",
+                                                Width = "70"
+                                            },
+                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.CreatedAtUtc))
+                                            {
+                                                Title = "Created (UTC)"
+                                            },
+                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.NextAttemptAtUtc))
+                                            {
+                                                Title = "Next Attempt (UTC)"
+                                            },
+                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.LastError))
+                                            {
+                                                Title = "Last Error"
+                                            },
+                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.Id))
+                                            {
+                                                Title = "Requeue",
+                                                Width = "100",
+                                                ClassName = NopColumnClassDefaults.Button,
+                                                Render = new RenderCustom("renderRequeueOutbox")
+                                            }
+                                        }
+                                    })
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tab-pane" id="tab-deadletter">
+                            <div class="card card-default">
+                                <div class="card-body">
+                                    @await Html.PartialAsync("Table", new DataTablesModel
+                                    {
+                                        Name = "deadletter-grid",
+                                        UrlRead = new DataUrl("DeadLetterList", "Operations", null),
+                                        Length = Model.DeadLetterSearch.PageSize,
+                                        LengthMenu = Model.DeadLetterSearch.AvailablePageSizes,
+                                        ColumnCollection = new List<ColumnProperty>
+                                        {
+                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.DeadLetterRecordModel.Id))
+                                            {
+                                                Title = "Id",
+                                                Width = "60"
+                                            },
+                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.DeadLetterRecordModel.CorrelationId))
+                                            {
+                                                Title = "Correlation"
+                                            },
+                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.DeadLetterRecordModel.Adapter))
+                                            {
+                                                Title = "Adapter"
+                                            },
+                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.DeadLetterRecordModel.EscalationState))
+                                            {
+                                                Title = "State"
+                                            },
+                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.DeadLetterRecordModel.FailureReason))
+                                            {
+                                                Title = "Failure Reason"
+                                            },
+                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.DeadLetterRecordModel.CreatedAtUtc))
+                                            {
+                                                Title = "Created (UTC)"
+                                            },
+                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.DeadLetterRecordModel.LastAttemptAtUtc))
+                                            {
+                                                Title = "Last Attempt (UTC)"
+                                            },
+                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.DeadLetterRecordModel.Id))
+                                            {
+                                                Title = "Requeue",
+                                                Width = "100",
+                                                ClassName = NopColumnClassDefaults.Button,
+                                                Render = new RenderCustom("renderRequeueDeadLetter")
+                                            }
+                                        }
+                                    })
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="card card-default">
+                <div class="card-header">
+                    <h5>Circuit Breaker State</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Not implemented by Person 2 — owned by Person 4 (Polly integration).</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script>
+    function renderRequeueOutbox(data, type, row, meta) {
+        if (row.Status === 'Failed' || row.Status === 'Retrying') {
+            return '<button onclick="requeueOutbox(' + data + ')" class="btn btn-sm btn-warning">Requeue</button>';
+        }
+        return '';
+    }
+
+    function renderRequeueDeadLetter(data, type, row, meta) {
+        if (row.EscalationState === 'New' || row.EscalationState === 'Acknowledged') {
+            return '<button onclick="requeueDeadLetter(' + data + ')" class="btn btn-sm btn-warning">Requeue</button>';
+        }
+        return '';
+    }
+
+    function requeueOutbox(id) {
+        if (!confirm('Requeue this outbox record?')) return;
+        $.post('@Url.Action("RequeueOutbox", "Operations")', { id: id, __RequestVerificationToken: $('input[name=__RequestVerificationToken]').val() })
+            .done(function () { $('#outbox-grid').DataTable().ajax.reload(); })
+            .fail(function () { alert('Requeue failed.'); });
+    }
+
+    function requeueDeadLetter(id) {
+        if (!confirm('Requeue this dead-letter record?')) return;
+        $.post('@Url.Action("RequeueDeadLetter", "Operations")', { id: id, __RequestVerificationToken: $('input[name=__RequestVerificationToken]').val() })
+            .done(function () { $('#deadletter-grid').DataTable().ajax.reload(); })
+            .fail(function () { alert('Requeue failed.'); });
+    }
+</script>
