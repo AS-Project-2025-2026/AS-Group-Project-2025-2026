@@ -369,6 +369,7 @@ public partial class BaseNopTest
         services.AddTransient<IOrderService, OrderService>();
         services.AddTransient<IOrderReportService, OrderReportService>();
         services.AddTransient<IOrderProcessingService, OrderProcessingService>();
+        services.AddTransient<global::Nop.Services.Integration.IIntegrationRecordService, global::Nop.Services.Integration.IntegrationRecordService>();
         services.AddTransient<IOrderTotalCalculationService, OrderTotalCalculationService>();
         services.AddTransient<IReturnRequestService, ReturnRequestService>();
         services.AddTransient<IRewardPointService, RewardPointService>();
