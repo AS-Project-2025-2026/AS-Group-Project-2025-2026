@@ -81,6 +81,34 @@ services:
       timeout: 5s
       retries: 12
 
+  integration_worker:
+    build:
+      context: .
+      dockerfile: src/Integration/Nop.IntegrationWorker/Dockerfile
+    environment:
+      ConnectionStrings__ConnectionString: "Server=nopcommerce_database,1433;Database=NopCommerce;User Id=sa;Password=nopCommerce_db_password;TrustServerCertificate=True;"
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__Username: guest
+      RabbitMq__Password: guest
+      RabbitMq__Exchange: verdemart.integration
+      RabbitMq__FulfillmentQueue: fulfillment.requests
+      RabbitMq__ShippingQueue: shipping.requests
+      Warehouse__BaseUrl: http://warehouse_stub:8080
+      Shipping__BaseUrl: http://shipping_stub:8080
+      Worker__PollingIntervalSeconds: ${WORKER_POLLING_INTERVAL:-5}
+      Worker__BatchSize: ${WORKER_BATCH_SIZE:-20}
+    depends_on:
+      nopcommerce_database:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      warehouse_stub:
+        condition: service_healthy
+      shipping_stub:
+        condition: service_healthy
+    restart: on-failure
+
 volumes:
   nopcommerce_data:
   nopcommerce_app_data:
