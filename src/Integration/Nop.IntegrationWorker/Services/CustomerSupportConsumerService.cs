@@ -14,34 +14,28 @@ using RabbitMQ.Client.Events;
 
 namespace Nop.IntegrationWorker.Services;
 
-public class FulfillmentConsumerService : BackgroundService
+public class CustomerSupportConsumerService : BackgroundService
 {
     private readonly RabbitMqConnectionFactory _connectionFactory;
-    private readonly WarehouseClient _warehouse;
+    private readonly CustomerSupportClient _customerSupport;
     private readonly WorkerDataService _data;
-    private readonly RabbitMqPublisher _publisher;
     private readonly ResilienceExecutor _resilience;
     private readonly RabbitMqOptions _rmqOpts;
-    private readonly ILogger<FulfillmentConsumerService> _logger;
+    private readonly ILogger<CustomerSupportConsumerService> _logger;
 
-    private const string AdapterName = "warehouse";
-    private const string ShippingRoutingKey = "shipping.requested";
-    private const string StoreOpsRoutingKey = "storeops.requested";
-    private const string CustomerSupportRoutingKey = "customersupport.requested";
+    private const string AdapterName = "customersupport";
 
-    public FulfillmentConsumerService(
+    public CustomerSupportConsumerService(
         RabbitMqConnectionFactory connectionFactory,
-        WarehouseClient warehouse,
+        CustomerSupportClient customerSupport,
         WorkerDataService data,
-        RabbitMqPublisher publisher,
         ResilienceExecutor resilience,
         IOptions<RabbitMqOptions> rmqOpts,
-        ILogger<FulfillmentConsumerService> logger)
+        ILogger<CustomerSupportConsumerService> logger)
     {
         _connectionFactory = connectionFactory;
-        _warehouse = warehouse;
+        _customerSupport = customerSupport;
         _data = data;
-        _publisher = publisher;
         _resilience = resilience;
         _rmqOpts = rmqOpts.Value;
         _logger = logger;
@@ -57,12 +51,12 @@ public class FulfillmentConsumerService : BackgroundService
         consumer.ReceivedAsync += (_, ea) => HandleAsync(channel, ea, stoppingToken);
 
         await channel.BasicConsumeAsync(
-            queue: _rmqOpts.FulfillmentQueue,
+            queue: _rmqOpts.CustomerSupportQueue,
             autoAck: false,
             consumer: consumer,
             cancellationToken: stoppingToken);
 
-        _logger.LogInformation("FulfillmentConsumerService listening on '{Queue}'", _rmqOpts.FulfillmentQueue);
+        _logger.LogInformation("CustomerSupportConsumerService listening on '{Queue}'", _rmqOpts.CustomerSupportQueue);
 
         await Task.Delay(Timeout.Infinite, stoppingToken);
     }
@@ -70,17 +64,16 @@ public class FulfillmentConsumerService : BackgroundService
     private async Task HandleAsync(IChannel channel, BasicDeliverEventArgs ea, CancellationToken ct)
     {
         var body = Encoding.UTF8.GetString(ea.Body.Span);
-        _logger.LogDebug("Fulfillment message received: {Body}", body);
 
-        FulfillmentPayload? payload;
+        CustomerSupportPayload? payload;
         try
         {
-            payload = JsonSerializer.Deserialize<FulfillmentPayload>(body,
+            payload = JsonSerializer.Deserialize<CustomerSupportPayload>(body,
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Cannot deserialise fulfillment message — discarding");
+            _logger.LogError(ex, "Cannot deserialise customer support message — discarding");
             await channel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: false, cancellationToken: ct);
             return;
         }
@@ -91,21 +84,21 @@ public class FulfillmentConsumerService : BackgroundService
             return;
         }
 
-        var fulfillmentKey = $"fulfillment:{payload.IdempotencyKey}";
-        var existing = await _data.GetIdempotencyRecordAsync(fulfillmentKey);
+        var idempotencyKey = $"customersupport:{payload.IdempotencyKey}";
+        var existing = await _data.GetIdempotencyRecordAsync(idempotencyKey);
         if (existing is not null)
         {
-            _logger.LogInformation("Fulfillment already processed (key={Key}) — acking", fulfillmentKey);
+            _logger.LogInformation("CustomerSupport already processed (key={Key}) — acking", idempotencyKey);
             await channel.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: ct);
             return;
         }
 
         _logger.LogInformation(
-            "Outbox picked up. Adapter={Adapter} CorrelationId={CorrelationId} IdempotencyKey={IdempotencyKey} OrderId={OrderId}",
-            AdapterName, payload.CorrelationId, payload.IdempotencyKey, payload.OrderId);
+            "Outbox picked up. Adapter={Adapter} CorrelationId={CorrelationId} IdempotencyKey={IdempotencyKey} OrderId={OrderId} Reason={Reason}",
+            AdapterName, payload.CorrelationId, payload.IdempotencyKey, payload.OrderId, payload.Reason);
 
         var firstAttemptAt = DateTime.UtcNow;
-        string? warehouseRef = null;
+        string? ticketId = null;
 
         var (success, lastError, attempts) = await _resilience.ExecuteAsync(
             adapter: AdapterName,
@@ -114,7 +107,7 @@ public class FulfillmentConsumerService : BackgroundService
             outboxRecordId: null,
             operation: async innerCt =>
             {
-                warehouseRef = await _warehouse.RequestFulfillmentAsync(body, innerCt);
+                ticketId = await _customerSupport.CreateTicketAsync(body, innerCt);
             },
             ct: ct);
 
@@ -140,39 +133,18 @@ public class FulfillmentConsumerService : BackgroundService
             return;
         }
 
-        await _data.InsertIdempotencyRecordAsync(fulfillmentKey,
-            JsonSerializer.Serialize(new { status = "processed", adapter = AdapterName, processedAtUtc = DateTime.UtcNow }));
-
-        var shippingPayload = new ShippingPayload
-        {
-            OrderId = payload.OrderId,
-            CorrelationId = payload.CorrelationId,
-            IdempotencyKey = Guid.NewGuid().ToString(),
-            WarehouseReference = warehouseRef ?? string.Empty
-        };
-        await _publisher.PublishAsync(ShippingRoutingKey, JsonSerializer.Serialize(shippingPayload), ct);
-
-        var storeOpsPayload = new StoreOpsPayload
-        {
-            OrderId = payload.OrderId,
-            CorrelationId = payload.CorrelationId,
-            IdempotencyKey = Guid.NewGuid().ToString(),
-            WarehouseReference = warehouseRef ?? string.Empty
-        };
-        await _publisher.PublishAsync(StoreOpsRoutingKey, JsonSerializer.Serialize(storeOpsPayload), ct);
-
-        var customerSupportPayload = new CustomerSupportPayload
-        {
-            OrderId = payload.OrderId,
-            CorrelationId = payload.CorrelationId,
-            IdempotencyKey = Guid.NewGuid().ToString(),
-            Reason = "fulfillment_confirmed"
-        };
-        await _publisher.PublishAsync(CustomerSupportRoutingKey, JsonSerializer.Serialize(customerSupportPayload), ct);
+        await _data.InsertIdempotencyRecordAsync(idempotencyKey,
+            JsonSerializer.Serialize(new
+            {
+                status = "processed",
+                adapter = AdapterName,
+                ticketId,
+                processedAtUtc = DateTime.UtcNow
+            }));
 
         _logger.LogInformation(
-            "Message published. Adapter={Adapter} CorrelationId={CorrelationId} OrderId={OrderId} RetryAttempt={Attempts}",
-            AdapterName, payload.CorrelationId, payload.OrderId, attempts);
+            "Message published. Adapter={Adapter} CorrelationId={CorrelationId} OrderId={OrderId} TicketId={TicketId} RetryAttempt={Attempts}",
+            AdapterName, payload.CorrelationId, payload.OrderId, ticketId, attempts);
 
         await channel.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: ct);
     }

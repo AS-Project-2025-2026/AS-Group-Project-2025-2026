@@ -10,4 +10,5 @@ public class RabbitMqOptions
     public string FulfillmentQueue { get; set; } = "fulfillment.requests";
     public string ShippingQueue { get; set; } = "shipping.requests";
     public string StoreOpsQueue { get; set; } = "storeops.requests";
+    public string CustomerSupportQueue { get; set; } = "customersupport.requests";
 }

@@ -19,6 +19,7 @@ var host = Host.CreateDefaultBuilder(args)
         services.Configure<ShippingOptions>(cfg.GetSection("Shipping"));
         services.Configure<InventoryOptions>(cfg.GetSection("Inventory"));
         services.Configure<StorePosOptions>(cfg.GetSection("StorePos"));
+        services.Configure<CustomerSupportOptions>(cfg.GetSection("CustomerSupport"));
         services.Configure<ResilienceOptions>(cfg.GetSection("Resilience"));
 
         var connectionString = cfg["ConnectionStrings:ConnectionString"]
@@ -58,11 +59,19 @@ var host = Host.CreateDefaultBuilder(args)
             client.Timeout = TimeSpan.FromSeconds(60);
         });
 
+        services.AddHttpClient<CustomerSupportClient>((sp, client) =>
+        {
+            var opts = sp.GetRequiredService<IOptions<CustomerSupportOptions>>().Value;
+            client.BaseAddress = new Uri(opts.BaseUrl);
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+
         services.AddHostedService<OutboxPollingService>();
         services.AddHostedService<FulfillmentConsumerService>();
         services.AddHostedService<ShippingConsumerService>();
         services.AddHostedService<StoreOpsConsumerService>();
         services.AddHostedService<InventorySyncService>();
+        services.AddHostedService<CustomerSupportConsumerService>();
     })
     .Build();
 

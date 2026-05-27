@@ -94,6 +94,23 @@
       "durable": true,
       "auto_delete": false,
       "arguments": {}
+    },
+    {
+      "name": "customersupport.requests",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "verdemart.integration.dlx",
+        "x-dead-letter-routing-key": "customersupport.dead"
+      }
+    },
+    {
+      "name": "customersupport.dead",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
     }
   ],
   "bindings": [
@@ -143,6 +160,22 @@
       "destination": "storeops.dead",
       "destination_type": "queue",
       "routing_key": "storeops.dead",
+      "arguments": {}
+    },
+    {
+      "source": "verdemart.integration",
+      "vhost": "/",
+      "destination": "customersupport.requests",
+      "destination_type": "queue",
+      "routing_key": "customersupport.requested",
+      "arguments": {}
+    },
+    {
+      "source": "verdemart.integration.dlx",
+      "vhost": "/",
+      "destination": "customersupport.dead",
+      "destination_type": "queue",
+      "routing_key": "customersupport.dead",
       "arguments": {}
     }
   ]
