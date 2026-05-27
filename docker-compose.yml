@@ -139,6 +139,11 @@ services:
       StorePos__BaseUrl: http://storepos_stub:8080
       Worker__PollingIntervalSeconds: ${WORKER_POLLING_INTERVAL:-5}
       Worker__BatchSize: ${WORKER_BATCH_SIZE:-20}
+      Resilience__InitialDelaySeconds: ${RESILIENCE__INITIALDELAYSECONDS:-2}
+      Resilience__MaxDelaySeconds: ${RESILIENCE__MAXDELAYSECONDS:-300}
+      Resilience__MaxRetryAttempts: ${RESILIENCE__MAXRETRYATTEMPTS:-10}
+      Resilience__CircuitFailureThreshold: ${RESILIENCE__CIRCUITFAILURETHRESHOLD:-5}
+      Resilience__CircuitCooldownSeconds: ${RESILIENCE__CIRCUITCOOLDOWNSECONDS:-300}
     depends_on:
       nopcommerce_database:
         condition: service_healthy
