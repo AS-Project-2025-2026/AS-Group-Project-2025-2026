@@ -23,6 +23,7 @@ public class FulfillmentConsumerService : BackgroundService
     private readonly ILogger<FulfillmentConsumerService> _logger;
 
     private const string ShippingRoutingKey = "shipping.requested";
+    private const string StoreOpsRoutingKey = "storeops.requested";
 
     public FulfillmentConsumerService(
         RabbitMqConnectionFactory connectionFactory,
@@ -107,13 +108,22 @@ public class FulfillmentConsumerService : BackgroundService
             {
                 OrderId = payload.OrderId,
                 CorrelationId = payload.CorrelationId,
-                IdempotencyKey = Guid.NewGuid().ToString(), // fresh key for shipping step
+                IdempotencyKey = Guid.NewGuid().ToString(),
                 WarehouseReference = warehouseRef
             };
-            var shippingJson = JsonSerializer.Serialize(shippingPayload);
-            await _publisher.PublishAsync(ShippingRoutingKey, shippingJson, ct);
+            await _publisher.PublishAsync(ShippingRoutingKey, JsonSerializer.Serialize(shippingPayload), ct);
 
-            _logger.LogInformation("Fulfillment succeeded for Order={OrderId}, shipping request published", payload.OrderId);
+            // Notify store POS to prepare for cross-channel pickup
+            var storeOpsPayload = new StoreOpsPayload
+            {
+                OrderId = payload.OrderId,
+                CorrelationId = payload.CorrelationId,
+                IdempotencyKey = Guid.NewGuid().ToString(),
+                WarehouseReference = warehouseRef
+            };
+            await _publisher.PublishAsync(StoreOpsRoutingKey, JsonSerializer.Serialize(storeOpsPayload), ct);
+
+            _logger.LogInformation("Fulfillment succeeded for Order={OrderId}, shipping + storeops requests published", payload.OrderId);
             await channel.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: ct);
         }
         catch (Exception ex)

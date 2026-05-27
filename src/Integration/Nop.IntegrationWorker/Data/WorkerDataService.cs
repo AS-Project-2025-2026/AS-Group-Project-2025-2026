@@ -82,4 +82,23 @@ public class WorkerDataService
             expires = (DateTime?)DateTime.UtcNow.AddHours(48)
         });
     }
+
+    /// <summary>
+    /// Updates nopCommerce Product.StockQuantity for a given product.
+    /// Only affects products using direct stock management (ManageInventoryMethodId = 1).
+    /// Returns the number of rows updated (0 if product not found or not managed).
+    /// </summary>
+    public async Task<int> UpdateProductStockAsync(int productId, int quantity)
+    {
+        const string sql = """
+            UPDATE Product
+            SET StockQuantity = @quantity
+            WHERE Id = @productId
+              AND ManageInventoryMethodId = 1
+              AND UseMultipleWarehouses = 0
+            """;
+
+        using var conn = OpenConnection();
+        return await conn.ExecuteAsync(sql, new { productId, quantity });
+    }
 }

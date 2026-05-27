@@ -16,6 +16,8 @@ var host = Host.CreateDefaultBuilder(args)
         services.Configure<WorkerOptions>(cfg.GetSection("Worker"));
         services.Configure<WarehouseOptions>(cfg.GetSection("Warehouse"));
         services.Configure<ShippingOptions>(cfg.GetSection("Shipping"));
+        services.Configure<InventoryOptions>(cfg.GetSection("Inventory"));
+        services.Configure<StorePosOptions>(cfg.GetSection("StorePos"));
 
         var connectionString = cfg["ConnectionStrings:ConnectionString"]
             ?? throw new InvalidOperationException("ConnectionStrings:ConnectionString is required");
@@ -38,9 +40,25 @@ var host = Host.CreateDefaultBuilder(args)
             client.Timeout = TimeSpan.FromSeconds(60);
         });
 
+        services.AddHttpClient<InventoryClient>((sp, client) =>
+        {
+            var opts = sp.GetRequiredService<IOptions<InventoryOptions>>().Value;
+            client.BaseAddress = new Uri(opts.BaseUrl);
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+
+        services.AddHttpClient<StorePosClient>((sp, client) =>
+        {
+            var opts = sp.GetRequiredService<IOptions<StorePosOptions>>().Value;
+            client.BaseAddress = new Uri(opts.BaseUrl);
+            client.Timeout = TimeSpan.FromSeconds(60);
+        });
+
         services.AddHostedService<OutboxPollingService>();
         services.AddHostedService<FulfillmentConsumerService>();
         services.AddHostedService<ShippingConsumerService>();
+        services.AddHostedService<StoreOpsConsumerService>();
+        services.AddHostedService<InventorySyncService>();
     })
     .Build();
 

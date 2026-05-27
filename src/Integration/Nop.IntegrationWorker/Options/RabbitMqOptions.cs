@@ -9,4 +9,5 @@ public class RabbitMqOptions
     public string Exchange { get; set; } = "verdemart.integration";
     public string FulfillmentQueue { get; set; } = "fulfillment.requests";
     public string ShippingQueue { get; set; } = "shipping.requests";
+    public string StoreOpsQueue { get; set; } = "storeops.requests";
 }

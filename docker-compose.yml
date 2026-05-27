@@ -81,6 +81,43 @@ services:
       timeout: 5s
       retries: 12
 
+  inventory_stub:
+    build:
+      context: ./src/Stubs/InventoryStub
+    ports:
+      - "5083:8080"
+    environment:
+      STUB_MODE: ${INVENTORY_STUB_MODE:-normal}
+      STUB_DELAY_MS: ${INVENTORY_STUB_DELAY_MS:-0}
+      STUB_PRODUCT_IDS: ${INVENTORY_STUB_PRODUCT_IDS:-1,2,3,4,5}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2).read()\""
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  storepos_stub:
+    build:
+      context: ./src/Stubs/StorePosStub
+    ports:
+      - "5084:8080"
+    environment:
+      STUB_MODE: ${STOREPOS_STUB_MODE:-normal}
+      STUB_DELAY_MS: ${STOREPOS_STUB_DELAY_MS:-0}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2).read()\""
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
   integration_worker:
     build:
       context: .
@@ -94,8 +131,12 @@ services:
       RabbitMq__Exchange: verdemart.integration
       RabbitMq__FulfillmentQueue: fulfillment.requests
       RabbitMq__ShippingQueue: shipping.requests
+      RabbitMq__StoreOpsQueue: storeops.requests
       Warehouse__BaseUrl: http://warehouse_stub:8080
       Shipping__BaseUrl: http://shipping_stub:8080
+      Inventory__BaseUrl: http://inventory_stub:8080
+      Inventory__SyncIntervalSeconds: ${INVENTORY_SYNC_INTERVAL:-30}
+      StorePos__BaseUrl: http://storepos_stub:8080
       Worker__PollingIntervalSeconds: ${WORKER_POLLING_INTERVAL:-5}
       Worker__BatchSize: ${WORKER_BATCH_SIZE:-20}
     depends_on:
@@ -106,6 +147,10 @@ services:
       warehouse_stub:
         condition: service_healthy
       shipping_stub:
+        condition: service_healthy
+      inventory_stub:
+        condition: service_healthy
+      storepos_stub:
         condition: service_healthy
     restart: on-failure
 

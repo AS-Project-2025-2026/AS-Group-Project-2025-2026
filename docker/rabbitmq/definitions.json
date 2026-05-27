@@ -77,6 +77,23 @@
       "durable": true,
       "auto_delete": false,
       "arguments": {}
+    },
+    {
+      "name": "storeops.requests",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "verdemart.integration.dlx",
+        "x-dead-letter-routing-key": "storeops.dead"
+      }
+    },
+    {
+      "name": "storeops.dead",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
     }
   ],
   "bindings": [
@@ -110,6 +127,22 @@
       "destination": "shipping.dead",
       "destination_type": "queue",
       "routing_key": "shipping.dead",
+      "arguments": {}
+    },
+    {
+      "source": "verdemart.integration",
+      "vhost": "/",
+      "destination": "storeops.requests",
+      "destination_type": "queue",
+      "routing_key": "storeops.requested",
+      "arguments": {}
+    },
+    {
+      "source": "verdemart.integration.dlx",
+      "vhost": "/",
+      "destination": "storeops.dead",
+      "destination_type": "queue",
+      "routing_key": "storeops.dead",
       "arguments": {}
     }
   ]
