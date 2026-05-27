@@ -5,6 +5,7 @@ using Nop.IntegrationWorker.Clients;
 using Nop.IntegrationWorker.Data;
 using Nop.IntegrationWorker.Messaging;
 using Nop.IntegrationWorker.Options;
+using Nop.IntegrationWorker.Resilience;
 using Nop.IntegrationWorker.Services;
 
 var host = Host.CreateDefaultBuilder(args)
@@ -18,6 +19,7 @@ var host = Host.CreateDefaultBuilder(args)
         services.Configure<ShippingOptions>(cfg.GetSection("Shipping"));
         services.Configure<InventoryOptions>(cfg.GetSection("Inventory"));
         services.Configure<StorePosOptions>(cfg.GetSection("StorePos"));
+        services.Configure<ResilienceOptions>(cfg.GetSection("Resilience"));
 
         var connectionString = cfg["ConnectionStrings:ConnectionString"]
             ?? throw new InvalidOperationException("ConnectionStrings:ConnectionString is required");
@@ -25,6 +27,8 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddSingleton(_ => new WorkerDataService(connectionString));
         services.AddSingleton<RabbitMqConnectionFactory>();
         services.AddSingleton<RabbitMqPublisher>();
+        services.AddSingleton<CircuitBreakerRegistry>();
+        services.AddSingleton<ResilienceExecutor>();
 
         services.AddHttpClient<WarehouseClient>((sp, client) =>
         {

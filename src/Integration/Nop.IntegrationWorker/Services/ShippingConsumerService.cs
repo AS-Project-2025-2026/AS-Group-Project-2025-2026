@@ -8,6 +8,7 @@ using Nop.IntegrationWorker.Data;
 using Nop.IntegrationWorker.Messaging;
 using Nop.IntegrationWorker.Models;
 using Nop.IntegrationWorker.Options;
+using Nop.IntegrationWorker.Resilience;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
@@ -18,19 +19,24 @@ public class ShippingConsumerService : BackgroundService
     private readonly RabbitMqConnectionFactory _connectionFactory;
     private readonly ShippingClient _shipping;
     private readonly WorkerDataService _data;
+    private readonly ResilienceExecutor _resilience;
     private readonly RabbitMqOptions _rmqOpts;
     private readonly ILogger<ShippingConsumerService> _logger;
+
+    private const string AdapterName = "shipping";
 
     public ShippingConsumerService(
         RabbitMqConnectionFactory connectionFactory,
         ShippingClient shipping,
         WorkerDataService data,
+        ResilienceExecutor resilience,
         IOptions<RabbitMqOptions> rmqOpts,
         ILogger<ShippingConsumerService> logger)
     {
         _connectionFactory = connectionFactory;
         _shipping = shipping;
         _data = data;
+        _resilience = resilience;
         _rmqOpts = rmqOpts.Value;
         _logger = logger;
     }
@@ -79,7 +85,6 @@ public class ShippingConsumerService : BackgroundService
             return;
         }
 
-        // Idempotency guard
         var shippingKey = $"shipping:{payload.IdempotencyKey}";
         var existing = await _data.GetIdempotencyRecordAsync(shippingKey);
         if (existing is not null)
@@ -89,28 +94,59 @@ public class ShippingConsumerService : BackgroundService
             return;
         }
 
-        try
+        _logger.LogInformation(
+            "Outbox picked up. Adapter={Adapter} CorrelationId={CorrelationId} IdempotencyKey={IdempotencyKey} OrderId={OrderId}",
+            AdapterName, payload.CorrelationId, payload.IdempotencyKey, payload.OrderId);
+
+        var firstAttemptAt = DateTime.UtcNow;
+        string? trackingNumber = null;
+
+        var (success, lastError, attempts) = await _resilience.ExecuteAsync(
+            adapter: AdapterName,
+            correlationId: payload.CorrelationId,
+            idempotencyKey: payload.IdempotencyKey,
+            outboxRecordId: null,
+            operation: async innerCt =>
+            {
+                trackingNumber = await _shipping.CreateLabelAsync(body, innerCt);
+            },
+            ct: ct);
+
+        await _resilience.PersistCircuitStateAsync(_data, AdapterName);
+
+        if (!success)
         {
-            var trackingNumber = await _shipping.CreateLabelAsync(body, ct);
+            _logger.LogWarning(
+                "Dead-letter created. Adapter={Adapter} CorrelationId={CorrelationId} IdempotencyKey={IdempotencyKey} OrderId={OrderId} FailureReason={FailureReason}",
+                AdapterName, payload.CorrelationId, payload.IdempotencyKey, payload.OrderId, lastError);
 
-            await _data.InsertIdempotencyRecordAsync(shippingKey,
-                JsonSerializer.Serialize(new
-                {
-                    status = "processed",
-                    adapter = "shipping",
-                    trackingNumber,
-                    processedAtUtc = DateTime.UtcNow
-                }));
+            await _data.InsertDeadLetterAsync(
+                originalOutboxRecordId: null,
+                payload: body,
+                idempotencyKey: payload.IdempotencyKey,
+                correlationId: payload.CorrelationId,
+                adapter: AdapterName,
+                failureReason: lastError ?? "unknown",
+                firstAttemptAtUtc: firstAttemptAt,
+                lastAttemptAtUtc: DateTime.UtcNow);
 
-            _logger.LogInformation("Shipping label created for Order={OrderId}, tracking={Tracking}",
-                payload.OrderId, trackingNumber);
-
-            await channel.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: ct);
+            await channel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: false, cancellationToken: ct);
+            return;
         }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Shipping call failed for Order={OrderId} — nacking (requeue)", payload.OrderId);
-            await channel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: true, cancellationToken: ct);
-        }
+
+        await _data.InsertIdempotencyRecordAsync(shippingKey,
+            JsonSerializer.Serialize(new
+            {
+                status = "processed",
+                adapter = AdapterName,
+                trackingNumber,
+                processedAtUtc = DateTime.UtcNow
+            }));
+
+        _logger.LogInformation(
+            "Message published. Adapter={Adapter} CorrelationId={CorrelationId} OrderId={OrderId} TrackingNumber={TrackingNumber} RetryAttempt={Attempts}",
+            AdapterName, payload.CorrelationId, payload.OrderId, trackingNumber, attempts);
+
+        await channel.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: ct);
     }
 }

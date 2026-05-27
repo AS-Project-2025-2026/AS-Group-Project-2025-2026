@@ -8,6 +8,7 @@ using Nop.IntegrationWorker.Data;
 using Nop.IntegrationWorker.Messaging;
 using Nop.IntegrationWorker.Models;
 using Nop.IntegrationWorker.Options;
+using Nop.IntegrationWorker.Resilience;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
@@ -19,9 +20,11 @@ public class FulfillmentConsumerService : BackgroundService
     private readonly WarehouseClient _warehouse;
     private readonly WorkerDataService _data;
     private readonly RabbitMqPublisher _publisher;
+    private readonly ResilienceExecutor _resilience;
     private readonly RabbitMqOptions _rmqOpts;
     private readonly ILogger<FulfillmentConsumerService> _logger;
 
+    private const string AdapterName = "warehouse";
     private const string ShippingRoutingKey = "shipping.requested";
     private const string StoreOpsRoutingKey = "storeops.requested";
 
@@ -30,6 +33,7 @@ public class FulfillmentConsumerService : BackgroundService
         WarehouseClient warehouse,
         WorkerDataService data,
         RabbitMqPublisher publisher,
+        ResilienceExecutor resilience,
         IOptions<RabbitMqOptions> rmqOpts,
         ILogger<FulfillmentConsumerService> logger)
     {
@@ -37,6 +41,7 @@ public class FulfillmentConsumerService : BackgroundService
         _warehouse = warehouse;
         _data = data;
         _publisher = publisher;
+        _resilience = resilience;
         _rmqOpts = rmqOpts.Value;
         _logger = logger;
     }
@@ -85,7 +90,6 @@ public class FulfillmentConsumerService : BackgroundService
             return;
         }
 
-        // Idempotency guard
         var fulfillmentKey = $"fulfillment:{payload.IdempotencyKey}";
         var existing = await _data.GetIdempotencyRecordAsync(fulfillmentKey);
         if (existing is not null)
@@ -95,41 +99,71 @@ public class FulfillmentConsumerService : BackgroundService
             return;
         }
 
-        try
-        {
-            var warehouseRef = await _warehouse.RequestFulfillmentAsync(body, ct);
+        _logger.LogInformation(
+            "Outbox picked up. Adapter={Adapter} CorrelationId={CorrelationId} IdempotencyKey={IdempotencyKey} OrderId={OrderId}",
+            AdapterName, payload.CorrelationId, payload.IdempotencyKey, payload.OrderId);
 
-            // Record success before publishing shipping request (idempotent boundary)
-            await _data.InsertIdempotencyRecordAsync(fulfillmentKey,
-                JsonSerializer.Serialize(new { status = "processed", adapter = "warehouse", processedAtUtc = DateTime.UtcNow }));
+        var firstAttemptAt = DateTime.UtcNow;
+        string? warehouseRef = null;
 
-            // Publish shipping request
-            var shippingPayload = new ShippingPayload
+        var (success, lastError, attempts) = await _resilience.ExecuteAsync(
+            adapter: AdapterName,
+            correlationId: payload.CorrelationId,
+            idempotencyKey: payload.IdempotencyKey,
+            outboxRecordId: null,
+            operation: async innerCt =>
             {
-                OrderId = payload.OrderId,
-                CorrelationId = payload.CorrelationId,
-                IdempotencyKey = Guid.NewGuid().ToString(),
-                WarehouseReference = warehouseRef
-            };
-            await _publisher.PublishAsync(ShippingRoutingKey, JsonSerializer.Serialize(shippingPayload), ct);
+                warehouseRef = await _warehouse.RequestFulfillmentAsync(body, innerCt);
+            },
+            ct: ct);
 
-            // Notify store POS to prepare for cross-channel pickup
-            var storeOpsPayload = new StoreOpsPayload
-            {
-                OrderId = payload.OrderId,
-                CorrelationId = payload.CorrelationId,
-                IdempotencyKey = Guid.NewGuid().ToString(),
-                WarehouseReference = warehouseRef
-            };
-            await _publisher.PublishAsync(StoreOpsRoutingKey, JsonSerializer.Serialize(storeOpsPayload), ct);
+        await _resilience.PersistCircuitStateAsync(_data, AdapterName);
 
-            _logger.LogInformation("Fulfillment succeeded for Order={OrderId}, shipping + storeops requests published", payload.OrderId);
-            await channel.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: ct);
-        }
-        catch (Exception ex)
+        if (!success)
         {
-            _logger.LogWarning(ex, "Warehouse call failed for Order={OrderId} — nacking (requeue)", payload.OrderId);
-            await channel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: true, cancellationToken: ct);
+            _logger.LogWarning(
+                "Dead-letter created. Adapter={Adapter} CorrelationId={CorrelationId} IdempotencyKey={IdempotencyKey} OrderId={OrderId} FailureReason={FailureReason}",
+                AdapterName, payload.CorrelationId, payload.IdempotencyKey, payload.OrderId, lastError);
+
+            await _data.InsertDeadLetterAsync(
+                originalOutboxRecordId: null,
+                payload: body,
+                idempotencyKey: payload.IdempotencyKey,
+                correlationId: payload.CorrelationId,
+                adapter: AdapterName,
+                failureReason: lastError ?? "unknown",
+                firstAttemptAtUtc: firstAttemptAt,
+                lastAttemptAtUtc: DateTime.UtcNow);
+
+            await channel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: false, cancellationToken: ct);
+            return;
         }
+
+        await _data.InsertIdempotencyRecordAsync(fulfillmentKey,
+            JsonSerializer.Serialize(new { status = "processed", adapter = AdapterName, processedAtUtc = DateTime.UtcNow }));
+
+        var shippingPayload = new ShippingPayload
+        {
+            OrderId = payload.OrderId,
+            CorrelationId = payload.CorrelationId,
+            IdempotencyKey = Guid.NewGuid().ToString(),
+            WarehouseReference = warehouseRef ?? string.Empty
+        };
+        await _publisher.PublishAsync(ShippingRoutingKey, JsonSerializer.Serialize(shippingPayload), ct);
+
+        var storeOpsPayload = new StoreOpsPayload
+        {
+            OrderId = payload.OrderId,
+            CorrelationId = payload.CorrelationId,
+            IdempotencyKey = Guid.NewGuid().ToString(),
+            WarehouseReference = warehouseRef ?? string.Empty
+        };
+        await _publisher.PublishAsync(StoreOpsRoutingKey, JsonSerializer.Serialize(storeOpsPayload), ct);
+
+        _logger.LogInformation(
+            "Message published. Adapter={Adapter} CorrelationId={CorrelationId} OrderId={OrderId} RetryAttempt={Attempts}",
+            AdapterName, payload.CorrelationId, payload.OrderId, attempts);
+
+        await channel.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: ct);
     }
 }
