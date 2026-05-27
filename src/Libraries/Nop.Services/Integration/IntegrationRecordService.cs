@@ -14,6 +14,7 @@ public partial class IntegrationRecordService : IIntegrationRecordService
     protected readonly IRepository<OutboxRecord> _outboxRepository;
     protected readonly IRepository<DeadLetterRecord> _deadLetterRepository;
     protected readonly IRepository<IdempotencyRecord> _idempotencyRepository;
+    protected readonly IRepository<CircuitBreakerStateRecord> _circuitBreakerRepository;
     protected readonly IOrderService _orderService;
 
     #endregion
@@ -24,11 +25,13 @@ public partial class IntegrationRecordService : IIntegrationRecordService
         IRepository<OutboxRecord> outboxRepository,
         IRepository<DeadLetterRecord> deadLetterRepository,
         IRepository<IdempotencyRecord> idempotencyRepository,
+        IRepository<CircuitBreakerStateRecord> circuitBreakerRepository,
         IOrderService orderService)
     {
         _outboxRepository = outboxRepository;
         _deadLetterRepository = deadLetterRepository;
         _idempotencyRepository = idempotencyRepository;
+        _circuitBreakerRepository = circuitBreakerRepository;
         _orderService = orderService;
     }
 
@@ -91,6 +94,13 @@ public partial class IntegrationRecordService : IIntegrationRecordService
         query = query.OrderByDescending(r => r.CreatedAtUtc);
 
         return await query.ToPagedListAsync(pageIndex, pageSize);
+    }
+
+    public virtual async Task<IList<CircuitBreakerStateRecord>> GetCircuitBreakerStatesAsync()
+    {
+        return await _circuitBreakerRepository.Table
+            .OrderBy(r => r.Adapter)
+            .ToListAsync();
     }
 
     public virtual async Task RequeueOutboxRecordAsync(int outboxRecordId)

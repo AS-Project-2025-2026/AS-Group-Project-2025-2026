@@ -140,11 +140,27 @@
             </div>
 
             <div class="card card-default">
-                <div class="card-header">
-                    <h5>Circuit Breaker State</h5>
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Circuit Breaker State</h5>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="refreshCircuitBreakers()">Refresh</button>
                 </div>
                 <div class="card-body">
-                    <p class="text-muted">Not implemented by Person 2 — owned by Person 4 (Polly integration).</p>
+                    <table class="table table-sm table-bordered" id="circuit-breaker-table">
+                        <thead>
+                            <tr>
+                                <th>Adapter</th>
+                                <th>State</th>
+                                <th>Failures</th>
+                                <th>Opened (UTC)</th>
+                                <th>Next Probe (UTC)</th>
+                                <th>Last Error</th>
+                                <th>Updated (UTC)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="circuit-breaker-body">
+                            <tr><td colspan="7" class="text-muted text-center">Loading...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -179,4 +195,35 @@
             .done(function () { $('#deadletter-grid').DataTable().ajax.reload(); })
             .fail(function () { alert('Requeue failed.'); });
     }
+
+    function refreshCircuitBreakers() {
+        $.get('@Url.Action("CircuitBreakerList", "Operations")')
+            .done(function (data) {
+                var tbody = $('#circuit-breaker-body');
+                tbody.empty();
+                if (!data || data.length === 0) {
+                    tbody.append('<tr><td colspan="7" class="text-muted text-center">No circuit breaker state recorded yet.</td></tr>');
+                    return;
+                }
+                $.each(data, function (i, r) {
+                    var stateClass = r.state === 'Open' ? 'text-danger fw-bold'
+                        : r.state === 'HalfOpen' ? 'text-warning fw-bold'
+                        : 'text-success';
+                    tbody.append('<tr>'
+                        + '<td>' + (r.adapter || '') + '</td>'
+                        + '<td class="' + stateClass + '">' + (r.state || '') + '</td>'
+                        + '<td>' + (r.failureCount || 0) + '</td>'
+                        + '<td>' + (r.openedAtUtc || '—') + '</td>'
+                        + '<td>' + (r.nextProbeAtUtc || '—') + '</td>'
+                        + '<td class="text-truncate" style="max-width:200px" title="' + (r.lastError || '') + '">' + (r.lastError || '—') + '</td>'
+                        + '<td>' + (r.updatedAtUtc || '') + '</td>'
+                        + '</tr>');
+                });
+            })
+            .fail(function () {
+                $('#circuit-breaker-body').html('<tr><td colspan="7" class="text-danger">Failed to load circuit breaker state.</td></tr>');
+            });
+    }
+
+    $(document).ready(function () { refreshCircuitBreakers(); });
 </script>

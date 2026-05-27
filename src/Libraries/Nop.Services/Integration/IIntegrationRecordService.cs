@@ -11,6 +11,8 @@ public partial interface IIntegrationRecordService
 
     Task<IPagedList<DeadLetterRecord>> SearchDeadLetterRecordsAsync(string escalationState = null, int pageIndex = 0, int pageSize = int.MaxValue);
 
+    Task<IList<CircuitBreakerStateRecord>> GetCircuitBreakerStatesAsync();
+
     Task RequeueOutboxRecordAsync(int outboxRecordId);
 
     Task RequeueDeadLetterRecordAsync(int deadLetterRecordId);

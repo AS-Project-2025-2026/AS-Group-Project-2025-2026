@@ -1,6 +1,7 @@
 using Nop.Services.Integration;
 using Nop.Web.Areas.Admin.Models.Operations;
 using Nop.Web.Framework.Models.Extensions;
+using System.Collections.Generic;
 
 namespace Nop.Web.Areas.Admin.Factories;
 
@@ -83,6 +84,23 @@ public partial class OperationsModelFactory : IOperationsModelFactory
         });
 
         return model;
+    }
+
+    public virtual async Task<IList<CircuitBreakerStateModel>> PrepareCircuitBreakerModelsAsync()
+    {
+        var records = await _integrationRecordService.GetCircuitBreakerStatesAsync();
+
+        return records.Select(r => new CircuitBreakerStateModel
+        {
+            Id = r.Id,
+            Adapter = r.Adapter,
+            State = r.State,
+            FailureCount = r.FailureCount,
+            OpenedAtUtc = r.OpenedAtUtc?.ToString("yyyy-MM-dd HH:mm:ss"),
+            NextProbeAtUtc = r.NextProbeAtUtc?.ToString("yyyy-MM-dd HH:mm:ss"),
+            LastError = r.LastError,
+            UpdatedAtUtc = r.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss")
+        }).ToList();
     }
 
     #endregion
