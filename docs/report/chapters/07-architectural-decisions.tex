@@ -60,6 +60,15 @@ states must be visible to support agents and operators. Integration tasks also n
 guarantees to prevent duplicate fulfillment commands when retries occur, which is the subject
 of ADR 5.
 
+\textbf{Dominant forces:} fault isolation (checkout must not depend on warehouse availability),
+data consistency (fulfilled orders must not be silently lost), supportability (operators must
+observe pending and retrying states).
+
+\textbf{Accepted damage:} fulfillment state is eventually consistent rather than immediately
+visible; the order model requires intermediate lifecycle states; idempotency infrastructure
+is mandatory (ADR~5). This decision should be revisited if propagation delay consistently
+exceeds the bounds set by QAS~1 under normal operating conditions.
+
 \section{ADR 2: Transactional Outbox for Durable Integration Task Publishing}
 
 \subsection{Context}
@@ -117,6 +126,17 @@ which is acceptable given the asynchronous design. The outbox table becomes
 integration-critical infrastructure and must be covered by database backups and operational
 monitoring. The publishing interval also determines the minimum propagation latency, which must
 remain within the bounds set by QAS 1.
+
+\textbf{Dominant forces:} data consistency (order and integration task must be atomic),
+fault isolation (broker unavailability at commit time must not lose work), change cost
+(the outbox must be replaceable without touching checkout).
+
+\textbf{Accepted damage:} the outbox table is integration-critical and requires operational
+monitoring and backup; the polling interval introduces a bounded propagation delay between
+order confirmation and warehouse notification; at-least-once delivery requires all consumers
+to be idempotent. This decision should be revisited if polling latency grows beyond the
+QAS~1 threshold or if a native transactional messaging primitive becomes available in
+the nopCommerce platform.
 
 \section{ADR 3: Adapter Pattern with No Shared Database Across External Boundaries}
 
@@ -180,6 +200,15 @@ changes to checkout. The adapter boundary also enforces the language separation 
 Chapter 3: warehouse, POS, and carrier terminology does not leak into the core order model.
 The cost is that every new system needs an adapter implementation, but the scope of that work
 is predictable and isolated.
+
+\textbf{Dominant forces:} team ownership (each adapter has a clear and isolated scope),
+change cost and reversibility (replacing one adapter must not affect others), deployability
+(adapters are independently deployable).
+
+\textbf{Accepted damage:} every new external system requires a dedicated adapter
+implementation; the adapter layer adds translation code and deployment units that would not
+exist under a shared-database approach. This decision should be revisited if the number of
+adapters grows beyond what the team can operate independently.
 
 \section{ADR 4: nopCommerce Monolith Retained as the Commerce Core}
 
@@ -246,6 +275,16 @@ identified in QAS 3 and is not a constraint that justifies decomposition at this
 This decision does not preclude future extraction of read-heavy services such as the catalog or
 order-status projection if load patterns justify it later.
 
+\textbf{Dominant forces:} operational complexity (decomposition adds distributed transaction
+problems without resolving any identified QAS), deployability (one unit is simpler to run and
+test), reversibility (the monolith can be incrementally extracted later if load justifies it).
+
+\textbf{Accepted damage:} the commerce core cannot be scaled independently from its checkout
+and order-management data model; all customer-facing capabilities share one release cycle.
+This decision should be revisited if QAS~3 load targets require independent scaling of
+catalog or order-status reads, or if a new quality attribute requires fault isolation inside
+the commerce core itself.
+
 \section{ADR 5: Idempotency Key Strategy for Integration Messages}
 
 \subsection{Context}
@@ -283,6 +322,16 @@ Adapters must implement idempotency checks on the \texttt{IdempotencyKey}. The d
 window creates a bounded storage requirement for the key-outcome table. The risk of missing a
 duplicate outside the 48-hour window is low for the use case, since retries for any single
 message should complete well within that period.
+
+\textbf{Dominant forces:} data consistency (duplicate fulfillment or shipping labels cause
+operational harm), fault isolation (idempotency must be enforced at the message contract
+level, not inside any single adapter).
+
+\textbf{Accepted damage:} every adapter must implement a deduplication check; the
+key-outcome table introduces storage overhead proportional to message volume; duplicates
+arriving after the 48-hour window will be reprocessed. This decision should be revisited if
+message retry windows grow beyond the deduplication window, or if adapter stubs cannot
+implement key-level deduplication.
 
 \section{ADR 6: Retry Policy and Circuit Breaker for Adapter Calls}
 
@@ -325,6 +374,17 @@ dead-letter). The circuit breaker protects the recovering adapter from burst loa
 must be informed when a circuit opens, because it means fulfillment work has stopped flowing
 to the affected adapter. This requires a monitoring alert and a visible circuit-state indicator
 in the Support and Operations View.
+
+\textbf{Dominant forces:} fault isolation (a recovering adapter must not be overwhelmed),
+supportability (operators must know when a circuit is open and retries have stopped),
+operational complexity (backoff parameters and cooldown windows must be tuned per adapter).
+
+\textbf{Accepted damage:} under sustained failure, maximum propagation delay before
+dead-letter is approximately 50 minutes; circuit-breaker state must be surfaced in the
+Support and Operations View and monitored with alerting; backoff parameters introduce
+configuration that must be validated during testing. This decision should be revisited if
+the 50-minute dead-letter threshold is too slow for a particular adapter's recovery
+characteristic.
 
 \section{ADR 7: Dead-Letter Queue and Operator Intervention Model}
 
@@ -372,3 +432,15 @@ up alongside the orders table. The operator intervention model introduces a huma
 recovery path, which is appropriate for permanent failures but requires clear UI affordances
 in the Support and Operations View. The 30-day retention policy must be aligned with the
 business's order dispute window.
+
+\textbf{Dominant forces:} supportability (operators must be able to observe, acknowledge,
+and act on permanent failures), data consistency (a paid order must never be silently
+abandoned), operational complexity (human intervention must be guided by clear escalation
+state and UI affordances).
+
+\textbf{Accepted damage:} permanent failures require a human step in the recovery path, which
+introduces latency and operational load; the dead-letter table must be backed up and monitored
+as critical infrastructure; the 30-day retention creates a storage obligation. This decision
+should be revisited if the volume of dead-letter entries grows to a level that makes manual
+review unsustainable, at which point automated triage or a tiered escalation model may be
+needed.
