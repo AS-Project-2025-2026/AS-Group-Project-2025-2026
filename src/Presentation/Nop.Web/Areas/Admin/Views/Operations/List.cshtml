@@ -5,283 +5,447 @@
     NopHtml.SetActiveMenuItemSystemName("Integration Operations");
 }
 
+<style>
+    .ops-section { margin-bottom: 1.5rem; }
+    .ops-section .card-header { background: #f8f9fa; border-bottom: 1px solid #dee2e6; }
+    .ops-section .card-header h5 { font-size: .95rem; font-weight: 600; color: #343a40; }
+
+    .badge-status { font-size: .78rem; padding: .3em .6em; border-radius: .3rem; font-weight: 600; display:inline-block; }
+    .badge-published    { background:#d4edda; color:#155724; }
+    .badge-pending      { background:#fff3cd; color:#856404; }
+    .badge-retrying     { background:#fff3cd; color:#856404; }
+    .badge-failed       { background:#f8d7da; color:#721c24; }
+    .badge-requeued     { background:#d1ecf1; color:#0c5460; }
+    .badge-new          { background:#f8d7da; color:#721c24; }
+    .badge-acknowledged { background:#fff3cd; color:#856404; }
+    .badge-open         { background:#f8d7da; color:#721c24; font-weight:700; }
+    .badge-halfopen     { background:#fff3cd; color:#856404; font-weight:700; }
+    .badge-closed       { background:#d4edda; color:#155724; }
+    .badge-stale        { background:#fff3cd; color:#856404; }
+    .badge-conflict     { background:#f8d7da; color:#721c24; font-weight:700; }
+    .badge-ok           { background:#d4edda; color:#155724; }
+
+    .ops-table { font-size: .85rem; }
+    .ops-table th { background: #f8f9fa; font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: #6c757d; border-top: none; }
+    .ops-table td { vertical-align: middle; }
+    .ops-empty { text-align:center; color:#adb5bd; padding: 1.5rem 0; font-size: .88rem; }
+
+    .requeue-btn { font-size:.78rem; padding:.25rem .6rem; font-weight:600; }
+    .truncate-col { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+    .order-link { font-weight:600; color:#007bff; text-decoration:none; }
+    .order-link:hover { text-decoration:underline; }
+
+    .msg-type-badge { font-size:.75rem; padding:.2em .5em; border-radius:.25rem; background:#e9ecef; color:#495057; font-family:monospace; }
+    .msg-type-fulfillment { background:#cce5ff; color:#004085; }
+    .msg-type-shipping    { background:#e2d9f3; color:#4a235a; }
+    .msg-type-inventory   { background:#d6f5e3; color:#1a4731; }
+
+    .adapter-badge { font-size:.75rem; padding:.2em .5em; border-radius:.25rem; font-family:monospace; font-weight:600; }
+    .adapter-warehouse  { background:#cce5ff; color:#004085; }
+    .adapter-shipping   { background:#e2d9f3; color:#4a235a; }
+    .adapter-inventory  { background:#d6f5e3; color:#1a4731; }
+    .adapter-storepos   { background:#fde8d0; color:#7a3210; }
+    .adapter-support    { background:#fef3cd; color:#7a5c00; }
+
+    .failure-bar { height:6px; border-radius:3px; background:#dee2e6; min-width:60px; display:inline-block; vertical-align:middle; margin-left:6px; }
+    .failure-bar-fill { height:100%; border-radius:3px; }
+
+    .corr-id { font-family:monospace; font-size:.78rem; color:#6c757d; }
+    .error-tooltip { cursor:help; border-bottom:1px dashed #adb5bd; }
+</style>
+
 <div class="content-header clearfix">
     <h1 class="float-left">Integration Operations</h1>
 </div>
 
 <section class="content">
     <div class="container-fluid">
-        <div class="cards-group">
-            <div class="card card-default">
-                <div class="card-body">
-                    <ul class="nav nav-tabs" id="operations-tabs">
-                        <li class="nav-item">
-                            <a class="nav-link active" data-bs-toggle="tab" href="#tab-outbox">Outbox</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" data-bs-toggle="tab" href="#tab-deadletter">Dead Letters</a>
-                        </li>
-                    </ul>
-                    <div class="tab-content">
 
-                        <div class="tab-pane active" id="tab-outbox">
-                            <div class="card card-default">
-                                <div class="card-body">
-                                    @await Html.PartialAsync("Table", new DataTablesModel
-                                    {
-                                        Name = "outbox-grid",
-                                        UrlRead = new DataUrl("OutboxList", "Operations", null),
-                                        Length = Model.OutboxSearch.PageSize,
-                                        LengthMenu = Model.OutboxSearch.AvailablePageSizes,
-                                        ColumnCollection = new List<ColumnProperty>
-                                        {
-                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.Id))
-                                            {
-                                                Title = "Id",
-                                                Width = "60"
-                                            },
-                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.OrderId))
-                                            {
-                                                Title = "Order"
-                                            },
-                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.MessageType))
-                                            {
-                                                Title = "Message Type"
-                                            },
-                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.Status))
-                                            {
-                                                Title = "Status"
-                                            },
-                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.RetryCount))
-                                            {
-                                                Title = "Retries",
-                                                Width = "70"
-                                            },
-                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.CreatedAtUtc))
-                                            {
-                                                Title = "Created (UTC)"
-                                            },
-                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.NextAttemptAtUtc))
-                                            {
-                                                Title = "Next Attempt (UTC)"
-                                            },
-                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.LastError))
-                                            {
-                                                Title = "Last Error"
-                                            },
-                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.Id))
-                                            {
-                                                Title = "Requeue",
-                                                Width = "100",
-                                                ClassName = NopColumnClassDefaults.Button,
-                                                Render = new RenderCustom("renderRequeueOutbox")
-                                            }
-                                        }
-                                    })
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="tab-pane" id="tab-deadletter">
-                            <div class="card card-default">
-                                <div class="card-body">
-                                    @await Html.PartialAsync("Table", new DataTablesModel
-                                    {
-                                        Name = "deadletter-grid",
-                                        UrlRead = new DataUrl("DeadLetterList", "Operations", null),
-                                        Length = Model.DeadLetterSearch.PageSize,
-                                        LengthMenu = Model.DeadLetterSearch.AvailablePageSizes,
-                                        ColumnCollection = new List<ColumnProperty>
-                                        {
-                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.DeadLetterRecordModel.Id))
-                                            {
-                                                Title = "Id",
-                                                Width = "60"
-                                            },
-                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.DeadLetterRecordModel.CorrelationId))
-                                            {
-                                                Title = "Correlation"
-                                            },
-                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.DeadLetterRecordModel.Adapter))
-                                            {
-                                                Title = "Adapter"
-                                            },
-                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.DeadLetterRecordModel.EscalationState))
-                                            {
-                                                Title = "State"
-                                            },
-                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.DeadLetterRecordModel.FailureReason))
-                                            {
-                                                Title = "Failure Reason"
-                                            },
-                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.DeadLetterRecordModel.CreatedAtUtc))
-                                            {
-                                                Title = "Created (UTC)"
-                                            },
-                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.DeadLetterRecordModel.LastAttemptAtUtc))
-                                            {
-                                                Title = "Last Attempt (UTC)"
-                                            },
-                                            new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.DeadLetterRecordModel.Id))
-                                            {
-                                                Title = "Requeue",
-                                                Width = "100",
-                                                ClassName = NopColumnClassDefaults.Button,
-                                                Render = new RenderCustom("renderRequeueDeadLetter")
-                                            }
-                                        }
-                                    })
-                                </div>
-                            </div>
-                        </div>
-
-                    </div>
-                </div>
+        @* ── Outbox ── *@
+        <div class="card card-default ops-section">
+            <div class="card-header">
+                <h5 class="mb-0">Outbox</h5>
             </div>
-
-            <div class="card card-default">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Circuit Breaker State</h5>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="refreshCircuitBreakers()">Refresh</button>
-                </div>
-                <div class="card-body">
-                    <table class="table table-sm table-bordered" id="circuit-breaker-table">
-                        <thead>
-                            <tr>
-                                <th>Adapter</th>
-                                <th>State</th>
-                                <th>Failures</th>
-                                <th>Opened (UTC)</th>
-                                <th>Next Probe (UTC)</th>
-                                <th>Last Error</th>
-                                <th>Updated (UTC)</th>
-                            </tr>
-                        </thead>
-                        <tbody id="circuit-breaker-body">
-                            <tr><td colspan="7" class="text-muted text-center">Loading...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="card card-default">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Inventory Projection — Stale &amp; Conflicted</h5>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="refreshInventoryProjections()">Refresh</button>
-                </div>
-                <div class="card-body">
-                    <table class="table table-sm table-bordered" id="inventory-projection-table">
-                        <thead>
-                            <tr>
-                                <th>Product ID</th>
-                                <th>Source</th>
-                                <th>Reported Qty</th>
-                                <th>Last Confirmed (UTC)</th>
-                                <th>Stale</th>
-                                <th>Conflict</th>
-                                <th>Pending Reconciliation</th>
-                                <th>Resolved (UTC)</th>
-                                <th>Updated (UTC)</th>
-                            </tr>
-                        </thead>
-                        <tbody id="inventory-projection-body">
-                            <tr><td colspan="9" class="text-muted text-center">Loading...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
+            <div class="card-body">
+                @await Html.PartialAsync("Table", new DataTablesModel
+                {
+                    Name = "outbox-grid",
+                    UrlRead = new DataUrl("OutboxList", "Operations", null),
+                    Length = Model.OutboxSearch.PageSize,
+                    LengthMenu = Model.OutboxSearch.AvailablePageSizes,
+                    ColumnCollection = new List<ColumnProperty>
+                    {
+                        new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.OrderId))
+                        {
+                            Title = "Order", Width = "100",
+                            Render = new RenderCustom("renderOrderLinkWithCorr")
+                        },
+                        new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.MessageType))
+                        {
+                            Title = "Message Type",
+                            Render = new RenderCustom("renderMsgType")
+                        },
+                        new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.Status))
+                        {
+                            Title = "Status",
+                            Width = "100",
+                            Render = new RenderCustom("renderOutboxStatus")
+                        },
+                        new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.RetryCount))
+                        {
+                            Title = "Retries", Width = "65"
+                        },
+                        new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.CreatedAtUtc))
+                        {
+                            Title = "Created (UTC)"
+                        },
+                        new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.NextAttemptAtUtc))
+                        {
+                            Title = "Next Attempt (UTC)"
+                        },
+                        new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.LastError))
+                        {
+                            Title = "Last Error",
+                            Render = new RenderCustom("renderError")
+                        },
+                        new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.OutboxRecordModel.Id))
+                        {
+                            Title = "",
+                            Width = "90",
+                            ClassName = NopColumnClassDefaults.Button,
+                            Render = new RenderCustom("renderRequeueOutbox")
+                        }
+                    }
+                })
             </div>
         </div>
+
+        @* ── Dead Letters ── *@
+        <div class="card card-default ops-section">
+            <div class="card-header">
+                <h5 class="mb-0">Dead Letters</h5>
+            </div>
+            <div class="card-body">
+                @await Html.PartialAsync("Table", new DataTablesModel
+                {
+                    Name = "deadletter-grid",
+                    UrlRead = new DataUrl("DeadLetterList", "Operations", null),
+                    Length = Model.DeadLetterSearch.PageSize,
+                    LengthMenu = Model.DeadLetterSearch.AvailablePageSizes,
+                    ColumnCollection = new List<ColumnProperty>
+                    {
+                        new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.DeadLetterRecordModel.Id))
+                        {
+                            Title = "Id", Width = "50"
+                        },
+                        new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.DeadLetterRecordModel.CorrelationId))
+                        {
+                            Title = "Correlation ID",
+                            Render = new RenderCustom("renderDlCorrelation")
+                        },
+                        new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.DeadLetterRecordModel.Adapter))
+                        {
+                            Title = "Adapter", Width = "110",
+                            Render = new RenderCustom("renderAdapterBadge")
+                        },
+                        new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.DeadLetterRecordModel.EscalationState))
+                        {
+                            Title = "State", Width = "110",
+                            Render = new RenderCustom("renderDlState")
+                        },
+                        new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.DeadLetterRecordModel.FailureReason))
+                        {
+                            Title = "Failure Reason",
+                            Render = new RenderCustom("renderError")
+                        },
+                        new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.DeadLetterRecordModel.CreatedAtUtc))
+                        {
+                            Title = "Created (UTC)"
+                        },
+                        new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.DeadLetterRecordModel.LastAttemptAtUtc))
+                        {
+                            Title = "Last Attempt (UTC)"
+                        },
+                        new ColumnProperty(nameof(Nop.Web.Areas.Admin.Models.Operations.DeadLetterRecordModel.Id))
+                        {
+                            Title = "",
+                            Width = "90",
+                            ClassName = NopColumnClassDefaults.Button,
+                            Render = new RenderCustom("renderRequeueDeadLetter")
+                        }
+                    }
+                })
+            </div>
+        </div>
+
+        @* ── Circuit Breaker State ── *@
+        <div class="card card-default ops-section">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Circuit Breaker State</h5>
+                <button class="btn btn-sm btn-outline-secondary" onclick="refreshCircuitBreakers()">&#x21bb; Refresh</button>
+            </div>
+            <div class="card-body p-0">
+                <table class="table ops-table mb-0" id="circuit-breaker-table">
+                    <thead>
+                        <tr>
+                            <th>Adapter</th>
+                            <th>State</th>
+                            <th>Failures / Threshold</th>
+                            <th>Opened (UTC)</th>
+                            <th>Next Probe (UTC)</th>
+                            <th>Last Error</th>
+                            <th>Updated (UTC)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="circuit-breaker-body">
+                        <tr><td colspan="7" class="ops-empty">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        @* ── Inventory Projection ── *@
+        <div class="card card-default ops-section">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Inventory Projection — Stale &amp; Conflicted</h5>
+                <button class="btn btn-sm btn-outline-secondary" onclick="refreshInventoryProjections()">&#x21bb; Refresh</button>
+            </div>
+            <div class="card-body p-0">
+                <table class="table ops-table mb-0" id="inventory-projection-table">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Source</th>
+                            <th>Reported Qty</th>
+                            <th>Last Confirmed (UTC)</th>
+                            <th>Stale</th>
+                            <th>Conflict</th>
+                            <th>Pending Reconciliation</th>
+                            <th>Resolved (UTC)</th>
+                            <th>Updated (UTC)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inventory-projection-body">
+                        <tr><td colspan="9" class="ops-empty">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
     </div>
 </section>
 
 <script>
-    function renderRequeueOutbox(data, type, row, meta) {
-        if (row.Status === 'Failed' || row.Status === 'Retrying') {
-            return '<button onclick="requeueOutbox(' + data + ')" class="btn btn-sm btn-warning">Requeue</button>';
+    var CB_THRESHOLD = 5; // must match Resilience__CircuitFailureThreshold
+
+    // ── order link (standalone) ───────────────────────────────────────────────
+    function renderOrderLink(data) {
+        if (!data || data === 0) return '<span class="text-muted">—</span>';
+        return '<a href="/Admin/Order/Edit/' + data + '" target="_blank" class="order-link" title="Open order ' + data + ' in admin">#' + data + ' &#x2197;</a>';
+    }
+
+    // ── order link + correlation id in one cell ───────────────────────────────
+    function renderOrderLinkWithCorr(data, type, row) {
+        var corr = row.CorrelationId || row.correlationId || '';
+        var link = (data && data !== 0)
+            ? '<a href="/Admin/Order/Edit/' + data + '" target="_blank" class="order-link" title="Open order ' + data + '">#' + data + ' &#x2197;</a>'
+            : '<span class="text-muted">—</span>';
+        var corrSpan = corr ? '<br><span class="corr-id" title="Correlation ID">' + corr + '</span>' : '';
+        return link + corrSpan;
+    }
+
+    // ── message type badge ────────────────────────────────────────────────────
+    function renderMsgType(data) {
+        if (!data) return '';
+        var lower = data.toLowerCase();
+        var cls = lower.indexOf('fulfil') >= 0 ? 'msg-type-fulfillment'
+                : lower.indexOf('ship')   >= 0 ? 'msg-type-shipping'
+                : lower.indexOf('invent') >= 0 ? 'msg-type-inventory'
+                : '';
+        var label = data.replace('Requested', '').replace('Updated', ' Upd');
+        return '<span class="msg-type-badge ' + cls + '">' + label + '</span>';
+    }
+
+    // ── adapter badge ─────────────────────────────────────────────────────────
+    function renderAdapterBadge(data) {
+        if (!data) return '';
+        var lower = (data || '').toLowerCase();
+        var cls = lower.indexOf('war') >= 0  ? 'adapter-warehouse'
+                : lower.indexOf('ship') >= 0  ? 'adapter-shipping'
+                : lower.indexOf('inv') >= 0   ? 'adapter-inventory'
+                : lower.indexOf('pos') >= 0   ? 'adapter-storepos'
+                : lower.indexOf('sup') >= 0   ? 'adapter-support'
+                : '';
+        return '<span class="adapter-badge ' + cls + '">' + data + '</span>';
+    }
+
+    // ── dead letter correlation → order link if pattern order-N ──────────────
+    function renderDlCorrelation(data) {
+        if (!data) return '<span class="text-muted">—</span>';
+        var m = data.match(/^order-(\d+)/i);
+        if (m) {
+            return '<a href="/Admin/Order/Edit/' + m[1] + '" target="_blank" class="order-link" title="Open order ' + m[1] + '">'
+                 + '<span class="corr-id">' + data + '</span> &#x2197;</a>';
+        }
+        return '<span class="corr-id">' + data + '</span>';
+    }
+
+    // ── truncated error with full text on hover ───────────────────────────────
+    function renderError(data) {
+        if (!data) return '<span class="text-muted">—</span>';
+        var escaped = data.replace(/"/g, '&quot;').replace(/</g, '&lt;');
+        var short = data.length > 60 ? data.substring(0, 60) + '…' : data;
+        return '<span class="error-tooltip" title="' + escaped + '">' + short + '</span>';
+    }
+
+    // ── status badges ─────────────────────────────────────────────────────────
+    function statusBadge(val, map) {
+        var key = (val || '').toLowerCase();
+        var cls = map[key] || '';
+        return '<span class="badge-status ' + cls + '">' + (val || '') + '</span>';
+    }
+
+    function renderOutboxStatus(data) {
+        return statusBadge(data, {
+            published: 'badge-published',
+            pending:   'badge-pending',
+            retrying:  'badge-retrying',
+            failed:    'badge-failed'
+        });
+    }
+
+    function renderDlState(data) {
+        return statusBadge(data, {
+            new:          'badge-new',
+            acknowledged: 'badge-acknowledged',
+            requeued:     'badge-requeued'
+        });
+    }
+
+    // ── requeue buttons ───────────────────────────────────────────────────────
+    function renderRequeueOutbox(data, type, row) {
+        var s = row.Status || row.status || '';
+        if (s === 'Failed' || s === 'Retrying') {
+            return '<button onclick="requeueOutbox(' + data + ')" class="btn btn-sm btn-warning requeue-btn">&#x21ba; Requeue</button>';
         }
         return '';
     }
 
-    function renderRequeueDeadLetter(data, type, row, meta) {
-        if (row.EscalationState === 'New' || row.EscalationState === 'Acknowledged') {
-            return '<button onclick="requeueDeadLetter(' + data + ')" class="btn btn-sm btn-warning">Requeue</button>';
+    function renderRequeueDeadLetter(data, type, row) {
+        var s = row.EscalationState || row.escalationState || '';
+        if (s === 'New' || s === 'Acknowledged') {
+            return '<button onclick="requeueDeadLetter(' + data + ')" class="btn btn-sm btn-danger requeue-btn">&#x21ba; Requeue</button>';
         }
         return '';
     }
 
     function requeueOutbox(id) {
-        if (!confirm('Requeue this outbox record?')) return;
+        if (!confirm('Requeue outbox record #' + id + '?')) return;
         $.post('@Url.Action("RequeueOutbox", "Operations")', { id: id, __RequestVerificationToken: $('input[name=__RequestVerificationToken]').val() })
             .done(function () { $('#outbox-grid').DataTable().ajax.reload(); })
             .fail(function () { alert('Requeue failed.'); });
     }
 
     function requeueDeadLetter(id) {
-        if (!confirm('Requeue this dead-letter record?')) return;
+        if (!confirm('Requeue dead-letter record #' + id + '? A new outbox record will be created.')) return;
         $.post('@Url.Action("RequeueDeadLetter", "Operations")', { id: id, __RequestVerificationToken: $('input[name=__RequestVerificationToken]').val() })
-            .done(function () { $('#deadletter-grid').DataTable().ajax.reload(); })
+            .done(function () { $('#deadletter-grid').DataTable().ajax.reload(); $('#outbox-grid').DataTable().ajax.reload(); })
             .fail(function () { alert('Requeue failed.'); });
     }
 
+    // ── circuit breakers ──────────────────────────────────────────────────────
     function refreshCircuitBreakers() {
         $.get('@Url.Action("CircuitBreakerList", "Operations")')
             .done(function (data) {
                 var tbody = $('#circuit-breaker-body');
                 tbody.empty();
                 if (!data || data.length === 0) {
-                    tbody.append('<tr><td colspan="7" class="text-muted text-center">No circuit breaker state recorded yet.</td></tr>');
+                    tbody.append('<tr><td colspan="7" class="ops-empty">No circuit breaker state recorded yet.</td></tr>');
                     return;
                 }
                 $.each(data, function (i, r) {
-                    var stateClass = r.state === 'Open' ? 'text-danger fw-bold'
-                        : r.state === 'HalfOpen' ? 'text-warning fw-bold'
-                        : 'text-success';
+                    var state    = r.State    || r.state    || '';
+                    var adapter  = r.Adapter  || r.adapter  || '';
+                    var failures = r.FailureCount != null ? r.FailureCount : (r.failureCount || 0);
+                    var lastErr  = r.LastError || r.lastError || '';
+                    var opened   = r.OpenedAtUtc   || r.openedAtUtc   || '';
+                    var probe    = r.NextProbeAtUtc || r.nextProbeAtUtc || '';
+                    var updated  = r.UpdatedAtUtc  || r.updatedAtUtc  || '';
+
+                    var stateCls = state === 'Open'     ? 'badge-open'
+                                 : state === 'HalfOpen' ? 'badge-halfopen'
+                                 : 'badge-closed';
+                    var stateBadge = '<span class="badge-status ' + stateCls + '">' + state + '</span>';
+
+                    var pct  = Math.min(100, Math.round((failures / CB_THRESHOLD) * 100));
+                    var barColor = failures === 0 ? '#28a745' : failures >= CB_THRESHOLD ? '#dc3545' : '#ffc107';
+                    var bar = '<span style="font-weight:600">' + failures + '</span>'
+                            + ' / ' + CB_THRESHOLD
+                            + '<span class="failure-bar"><span class="failure-bar-fill" style="width:' + pct + '%;background:' + barColor + '"></span></span>';
+
+                    var errorCell = lastErr
+                        ? '<span class="error-tooltip truncate-col" title="' + lastErr.replace(/"/g,'&quot;') + '">' + (lastErr.length > 50 ? lastErr.substring(0,50)+'…' : lastErr) + '</span>'
+                        : '<span class="text-muted">—</span>';
+
                     tbody.append('<tr>'
-                        + '<td>' + (r.adapter || '') + '</td>'
-                        + '<td class="' + stateClass + '">' + (r.state || '') + '</td>'
-                        + '<td>' + (r.failureCount || 0) + '</td>'
-                        + '<td>' + (r.openedAtUtc || '—') + '</td>'
-                        + '<td>' + (r.nextProbeAtUtc || '—') + '</td>'
-                        + '<td class="text-truncate" style="max-width:200px" title="' + (r.lastError || '') + '">' + (r.lastError || '—') + '</td>'
-                        + '<td>' + (r.updatedAtUtc || '') + '</td>'
+                        + '<td>' + renderAdapterBadge(adapter) + '</td>'
+                        + '<td>' + stateBadge + '</td>'
+                        + '<td>' + bar + '</td>'
+                        + '<td>' + (opened || '<span class="text-muted">—</span>') + '</td>'
+                        + '<td>' + (probe  || '<span class="text-muted">—</span>') + '</td>'
+                        + '<td>' + errorCell + '</td>'
+                        + '<td>' + updated + '</td>'
                         + '</tr>');
                 });
             })
             .fail(function () {
-                $('#circuit-breaker-body').html('<tr><td colspan="7" class="text-danger">Failed to load circuit breaker state.</td></tr>');
+                $('#circuit-breaker-body').html('<tr><td colspan="7" class="text-danger text-center p-3">Failed to load circuit breaker state.</td></tr>');
             });
     }
 
+    // ── inventory projection ──────────────────────────────────────────────────
     function refreshInventoryProjections() {
         $.get('@Url.Action("InventoryProjectionList", "Operations")')
             .done(function (data) {
                 var tbody = $('#inventory-projection-body');
                 tbody.empty();
                 if (!data || data.length === 0) {
-                    tbody.append('<tr><td colspan="9" class="text-muted text-center">No stale or conflicted inventory records.</td></tr>');
+                    tbody.append('<tr><td colspan="9" class="ops-empty">No stale or conflicted inventory records.</td></tr>');
                     return;
                 }
                 $.each(data, function (i, r) {
-                    var rowClass = '';
-                    if (r.conflictFlag) rowClass = 'table-danger';
-                    else if (r.isStale) rowClass = 'table-warning';
-                    else if (r.resolvedAtUtc) rowClass = 'table-success';
+                    var pid       = r.ProductId       || r.productId;
+                    var src       = r.SourceSystem     || r.sourceSystem     || '';
+                    var qty       = r.ReportedQuantity != null ? r.ReportedQuantity : r.reportedQuantity;
+                    var confirmed = r.LastConfirmedUtc || r.lastConfirmedUtc  || '';
+                    var isStale   = r.IsStale          || r.isStale;
+                    var conflict  = r.ConflictFlag     || r.conflictFlag;
+                    var pending   = r.PendingReconciliation || r.pendingReconciliation;
+                    var resolved  = r.ResolvedAtUtc    || r.resolvedAtUtc;
+                    var updated   = r.UpdatedAtUtc     || r.updatedAtUtc     || '';
 
-                    tbody.append('<tr class="' + rowClass + '">'
-                        + '<td>' + r.productId + '</td>'
-                        + '<td>' + (r.sourceSystem || '') + '</td>'
-                        + '<td>' + r.reportedQuantity + '</td>'
-                        + '<td>' + (r.lastConfirmedUtc || '') + '</td>'
-                        + '<td>' + (r.isStale ? '<span class="text-warning fw-bold">YES</span>' : 'no') + '</td>'
-                        + '<td>' + (r.conflictFlag ? '<span class="text-danger fw-bold">YES</span>' : 'no') + '</td>'
-                        + '<td>' + (r.pendingReconciliation ? '<span class="text-warning">YES</span>' : 'no') + '</td>'
-                        + '<td>' + (r.resolvedAtUtc || '—') + '</td>'
-                        + '<td>' + (r.updatedAtUtc || '') + '</td>'
+                    var productLink = '<a href="/Admin/Product/Edit/' + pid + '" target="_blank" class="order-link" title="Edit product ' + pid + '">#' + pid + ' &#x2197;</a>';
+                    var srcBadge    = '<span class="adapter-badge ' + (src === 'wms' ? 'adapter-warehouse' : 'adapter-storepos') + '">' + src + '</span>';
+                    var staleBadge  = isStale   ? '<span class="badge-status badge-stale">Stale</span>'    : '<span class="badge-status badge-ok">OK</span>';
+                    var conflBadge  = conflict  ? '<span class="badge-status badge-conflict">Conflict</span>' : '<span class="badge-status badge-ok">OK</span>';
+                    var pendBadge   = pending   ? '<span class="badge-status badge-stale">Yes</span>'      : '<span class="text-muted">—</span>';
+
+                    tbody.append('<tr>'
+                        + '<td>' + productLink + '</td>'
+                        + '<td>' + srcBadge + '</td>'
+                        + '<td><strong>' + qty + '</strong></td>'
+                        + '<td>' + confirmed + '</td>'
+                        + '<td>' + staleBadge + '</td>'
+                        + '<td>' + conflBadge + '</td>'
+                        + '<td>' + pendBadge + '</td>'
+                        + '<td>' + (resolved || '<span class="text-muted">—</span>') + '</td>'
+                        + '<td>' + updated + '</td>'
                         + '</tr>');
                 });
             })
             .fail(function () {
-                $('#inventory-projection-body').html('<tr><td colspan="9" class="text-danger">Failed to load inventory projections.</td></tr>');
+                $('#inventory-projection-body').html('<tr><td colspan="9" class="text-danger text-center p-3">Failed to load inventory projections.</td></tr>');
             });
     }
 

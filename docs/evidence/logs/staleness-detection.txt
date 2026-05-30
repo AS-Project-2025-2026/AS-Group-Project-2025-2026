@@ -1,0 +1,17 @@
+integration_worker-1  |       Inventory stub returned 503 — skipping sync
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory staleness: 5 projection(s) marked IsStale=true (threshold=120s)
+integration_worker-1  | info: System.Net.Http.HttpClient.InventoryClient.LogicalHandler[100]
+integration_worker-1  |       Start processing HTTP request GET http://inventory_stub:8080/stock
+--
+integration_worker-1  |       Inventory stub returned 503 — skipping sync
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory staleness: 5 projection(s) marked IsStale=true (threshold=120s)
+integration_worker-1  | info: System.Net.Http.HttpClient.InventoryClient.LogicalHandler[100]
+integration_worker-1  |       Start processing HTTP request GET http://inventory_stub:8080/stock
+--
+integration_worker-1  |       Inventory sync complete — 5/5 products updated
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory staleness: 5 projection(s) marked IsStale=true (threshold=120s)
+integration_worker-1  | info: System.Net.Http.HttpClient.InventoryClient.LogicalHandler[100]
+integration_worker-1  |       Start processing HTTP request GET http://inventory_stub:8080/stock

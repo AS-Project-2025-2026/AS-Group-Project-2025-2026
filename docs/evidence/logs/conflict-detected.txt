@@ -1,0 +1,90 @@
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=1: wms=61 vs pos=10 (diff=51, tolerance=2) — checkout capped at 10
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=2: wms=174 vs pos=5 (diff=169, tolerance=2) — checkout capped at 5
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=3: wms=193 vs pos=20 (diff=173, tolerance=2) — checkout capped at 20
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=4: wms=174 vs pos=15 (diff=159, tolerance=2) — checkout capped at 15
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=5: wms=153 vs pos=8 (diff=145, tolerance=2) — checkout capped at 8
+integration_worker-1  | info: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory sync complete — 5/5 products updated
+--
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=1: wms=61 vs pos=10 (diff=51, tolerance=2) — checkout capped at 10
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=2: wms=174 vs pos=5 (diff=169, tolerance=2) — checkout capped at 5
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=3: wms=193 vs pos=20 (diff=173, tolerance=2) — checkout capped at 20
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=4: wms=174 vs pos=15 (diff=159, tolerance=2) — checkout capped at 15
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=5: wms=153 vs pos=8 (diff=145, tolerance=2) — checkout capped at 8
+integration_worker-1  | info: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory sync complete — 5/5 products updated
+--
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=1: wms=61 vs pos=10 (diff=51, tolerance=2) — checkout capped at 10
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=2: wms=174 vs pos=5 (diff=169, tolerance=2) — checkout capped at 5
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=3: wms=193 vs pos=20 (diff=173, tolerance=2) — checkout capped at 20
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=4: wms=174 vs pos=15 (diff=159, tolerance=2) — checkout capped at 15
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=5: wms=153 vs pos=8 (diff=145, tolerance=2) — checkout capped at 8
+integration_worker-1  | info: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory sync complete — 5/5 products updated
+--
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=1: wms=61 vs pos=10 (diff=51, tolerance=2) — checkout capped at 10
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=2: wms=174 vs pos=5 (diff=169, tolerance=2) — checkout capped at 5
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=3: wms=193 vs pos=20 (diff=173, tolerance=2) — checkout capped at 20
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=4: wms=174 vs pos=15 (diff=159, tolerance=2) — checkout capped at 15
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=5: wms=153 vs pos=8 (diff=145, tolerance=2) — checkout capped at 8
+integration_worker-1  | info: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory sync complete — 5/5 products updated
+--
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=1: wms=61 vs pos=10 (diff=51, tolerance=2) — checkout capped at 10
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=2: wms=174 vs pos=5 (diff=169, tolerance=2) — checkout capped at 5
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=3: wms=193 vs pos=20 (diff=173, tolerance=2) — checkout capped at 20
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=4: wms=174 vs pos=15 (diff=159, tolerance=2) — checkout capped at 15
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=5: wms=153 vs pos=8 (diff=145, tolerance=2) — checkout capped at 8
+integration_worker-1  | info: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory sync complete — 5/5 products updated
+--
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=1: wms=61 vs pos=10 (diff=51, tolerance=2) — checkout capped at 10
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=2: wms=174 vs pos=5 (diff=169, tolerance=2) — checkout capped at 5
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=3: wms=193 vs pos=20 (diff=173, tolerance=2) — checkout capped at 20
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=4: wms=174 vs pos=15 (diff=159, tolerance=2) — checkout capped at 15
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=5: wms=153 vs pos=8 (diff=145, tolerance=2) — checkout capped at 8
+integration_worker-1  | info: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory sync complete — 5/5 products updated
+--
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=1: wms=61 vs pos=10 (diff=51, tolerance=2) — checkout capped at 10
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=2: wms=174 vs pos=5 (diff=169, tolerance=2) — checkout capped at 5
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=3: wms=193 vs pos=20 (diff=173, tolerance=2) — checkout capped at 20
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=4: wms=174 vs pos=15 (diff=159, tolerance=2) — checkout capped at 15
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory conflict on ProductId=5: wms=153 vs pos=8 (diff=145, tolerance=2) — checkout capped at 8
+integration_worker-1  | info: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory sync complete — 5/5 products updated
