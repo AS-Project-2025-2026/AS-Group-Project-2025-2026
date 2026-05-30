@@ -8,8 +8,12 @@ from fastapi.responses import JSONResponse
 
 app = FastAPI(title="VerdeMart Inventory Stub")
 
-# In-memory stock: productId -> quantity. Seeded from env or defaults.
+# WMS stock: productId -> quantity. Seeded from env or defaults.
 _stock: dict[int, int] = {}
+
+# POS-reported stock: productId -> quantity. Set via POST /stock/pos-report.
+# If a product has no POS entry it is not considered in conflict.
+_pos_stock: dict[int, int] = {}
 
 
 def _init_stock() -> None:
@@ -64,10 +68,58 @@ async def get_stock() -> JSONResponse:
             }
         )
 
+    products = []
+    for pid, wms_qty in _stock.items():
+        entry: dict[str, Any] = {"productId": pid, "wmsQuantity": wms_qty}
+        if pid in _pos_stock:
+            entry["posQuantity"] = _pos_stock[pid]
+            entry["conflict"] = abs(wms_qty - _pos_stock[pid]) > int(os.getenv("CONFLICT_TOLERANCE", "2"))
+        products.append(entry)
+
+    return JSONResponse(content={"status": "ok", "products": products})
+
+
+@app.post("/stock/pos-report")
+async def pos_report(body: dict[str, Any]) -> JSONResponse:
+    """Simulate a POS system reporting a stock quantity different from the WMS.
+
+    Body: { "productId": int, "quantity": int }
+
+    This is the trigger for QAS 6 (inventory conflict between POS and WMS).
+    Calling this with a quantity that diverges from the WMS value by more than
+    CONFLICT_TOLERANCE units (default 2) will cause GET /stock to flag a conflict
+    on that product, which the Integration Worker should detect and surface as a
+    reconciliation task in the Operations View.
+    """
+    product_id = body.get("productId")
+    quantity = body.get("quantity")
+
+    if product_id is None:
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={"status": "error", "reason": "productId is required"},
+        )
+    if quantity is None or not isinstance(quantity, int) or quantity < 0:
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={"status": "error", "reason": "quantity must be a non-negative integer"},
+        )
+
+    _pos_stock[product_id] = quantity
+
+    wms_qty = _stock.get(product_id)
+    conflict = (
+        wms_qty is not None
+        and abs(wms_qty - quantity) > int(os.getenv("CONFLICT_TOLERANCE", "2"))
+    )
+
     return JSONResponse(
         content={
-            "status": "ok",
-            "products": [{"productId": pid, "quantity": qty} for pid, qty in _stock.items()],
+            "status": "reported",
+            "productId": product_id,
+            "posQuantity": quantity,
+            "wmsQuantity": wms_qty,
+            "conflict": conflict,
         }
     )
 
