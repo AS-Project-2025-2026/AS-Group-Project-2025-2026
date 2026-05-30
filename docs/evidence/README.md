@@ -1,15 +1,18 @@
 # Evidence Pack — Omnichannel Integration Spike
 
-This folder collects runtime evidence for the feasibility spike.
+This folder collects runtime evidence for the final delivery.
 
 ## Folder structure
 
 ```
 docs/evidence/
-├── README.md           — this file
-├── demo-script.md      — step-by-step demo commands
-├── screenshots/        — add .png/.jpg captures here
-└── logs/               — add log excerpts here (.txt or .log)
+├── README.md                     — this file
+├── demo-script.md                — step-by-step demo commands
+├── known-limitations.md          — explicit scope cuts and architectural boundaries
+├── inventory-staleness-implementation.md — implementation guide for QAS 2 & QAS 6
+├── capture-guide.md              — instructions for capturing screenshots and logs
+├── screenshots/                  — runtime screenshots
+└── logs/                         — worker log excerpts
 ```
 
 ## What to capture

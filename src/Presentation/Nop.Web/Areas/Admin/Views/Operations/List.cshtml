@@ -7,52 +7,153 @@
 
 <style>
     .ops-section { margin-bottom: 1.5rem; }
-    .ops-section .card-header { background: #f8f9fa; border-bottom: 1px solid #dee2e6; }
-    .ops-section .card-header h5 { font-size: .95rem; font-weight: 600; color: #343a40; }
-
-    .badge-status { font-size: .78rem; padding: .3em .6em; border-radius: .3rem; font-weight: 600; display:inline-block; }
-    .badge-published    { background:#d4edda; color:#155724; }
-    .badge-pending      { background:#fff3cd; color:#856404; }
-    .badge-retrying     { background:#fff3cd; color:#856404; }
-    .badge-failed       { background:#f8d7da; color:#721c24; }
-    .badge-requeued     { background:#d1ecf1; color:#0c5460; }
-    .badge-new          { background:#f8d7da; color:#721c24; }
-    .badge-acknowledged { background:#fff3cd; color:#856404; }
-    .badge-open         { background:#f8d7da; color:#721c24; font-weight:700; }
-    .badge-halfopen     { background:#fff3cd; color:#856404; font-weight:700; }
-    .badge-closed       { background:#d4edda; color:#155724; }
-    .badge-stale        { background:#fff3cd; color:#856404; }
-    .badge-conflict     { background:#f8d7da; color:#721c24; font-weight:700; }
-    .badge-ok           { background:#d4edda; color:#155724; }
-
-    .ops-table { font-size: .85rem; }
-    .ops-table th { background: #f8f9fa; font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: #6c757d; border-top: none; }
-    .ops-table td { vertical-align: middle; }
-    .ops-empty { text-align:center; color:#adb5bd; padding: 1.5rem 0; font-size: .88rem; }
-
-    .requeue-btn { font-size:.78rem; padding:.25rem .6rem; font-weight:600; }
+    .ops-section .card-header {
+        background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+        border-bottom: 2px solid #e9ecef;
+        padding: .75rem 1.25rem;
+    }
+    .ops-section .card-header h5 {
+        font-size: .95rem; font-weight: 700; color: #2d3748;
+        display: flex; align-items: center; gap: .5rem; margin: 0;
+    }
+    .ops-section .card-header h5 .section-icon {
+        width: 28px; height: 28px; border-radius: 6px;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: .85rem; flex-shrink: 0;
+    }
+    .icon-outbox     { background: #dbeafe; color: #1d4ed8; }
+    .icon-deadletter { background: #fee2e2; color: #b91c1c; }
+    .icon-circuit    { background: #fef3c7; color: #b45309; }
+    .icon-inventory  { background: #d1fae5; color: #065f46; }
+    .section-count {
+        font-size: .72rem; font-weight: 700; padding: .2em .55em;
+        border-radius: 999px; background: #e2e8f0; color: #4a5568;
+        margin-left: .25rem;
+    }
+    .ops-refresh-btn {
+        display: inline-flex; align-items: center; gap: .35rem;
+        font-size: .78rem; font-weight: 600; padding: .35rem .75rem;
+        border-radius: 6px; border: 1.5px solid #cbd5e0;
+        background: #fff; color: #4a5568; cursor: pointer;
+        transition: all .15s ease; text-decoration: none;
+    }
+    .ops-refresh-btn:hover { background: #edf2f7; border-color: #a0aec0; color: #2d3748; }
+    .ops-refresh-btn:active { transform: scale(.97); }
+    .ops-refresh-btn .spin { display: inline-block; transition: transform .4s; }
+    .ops-refresh-btn:active .spin { transform: rotate(180deg); }
+    .badge-status { font-size: .75rem; padding: .28em .6em; border-radius: 999px; font-weight: 700; display:inline-block; letter-spacing: .01em; }
+    .badge-published    { background:#d1fae5; color:#065f46; }
+    .badge-pending      { background:#fef3c7; color:#92400e; }
+    .badge-retrying     { background:#fef3c7; color:#92400e; }
+    .badge-failed       { background:#fee2e2; color:#991b1b; }
+    .badge-requeued     { background:#dbeafe; color:#1e40af; }
+    .badge-new          { background:#fee2e2; color:#991b1b; }
+    .badge-acknowledged { background:#fef3c7; color:#92400e; }
+    .badge-open         { background:#fee2e2; color:#991b1b; font-weight:800; }
+    .badge-halfopen     { background:#fef3c7; color:#92400e; font-weight:800; }
+    .badge-closed       { background:#d1fae5; color:#065f46; }
+    .badge-stale        { background:#fef3c7; color:#92400e; }
+    .badge-conflict     { background:#fee2e2; color:#991b1b; font-weight:800; }
+    .badge-ok           { background:#d1fae5; color:#065f46; }
+    .ops-table { font-size: .84rem; }
+    .ops-table th { background: #f7fafc; font-weight: 700; font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: #718096; border-top: none; border-bottom: 2px solid #e2e8f0; }
+    .ops-table td { vertical-align: middle; border-color: #f0f4f8; }
+    .ops-table tbody tr:hover { background: #f7fafc; }
+    .ops-empty { text-align:center; color:#a0aec0; padding: 2rem 0; font-size: .88rem; }
+    .requeue-btn {
+        font-size: .75rem; padding: .3rem .7rem; font-weight: 700;
+        border-radius: 6px; border: none; cursor: pointer;
+        display: inline-flex; align-items: center; gap: .3rem;
+        transition: all .15s ease;
+    }
+    .requeue-btn-warn   { background: #fef3c7; color: #92400e; border: 1.5px solid #f6d860; }
+    .requeue-btn-warn:hover   { background: #fde68a; }
+    .requeue-btn-danger { background: #fee2e2; color: #991b1b; border: 1.5px solid #fca5a5; }
+    .requeue-btn-danger:hover { background: #fecaca; }
     .truncate-col { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-
-    .order-link { font-weight:600; color:#007bff; text-decoration:none; }
-    .order-link:hover { text-decoration:underline; }
-
-    .msg-type-badge { font-size:.75rem; padding:.2em .5em; border-radius:.25rem; background:#e9ecef; color:#495057; font-family:monospace; }
-    .msg-type-fulfillment { background:#cce5ff; color:#004085; }
-    .msg-type-shipping    { background:#e2d9f3; color:#4a235a; }
-    .msg-type-inventory   { background:#d6f5e3; color:#1a4731; }
-
-    .adapter-badge { font-size:.75rem; padding:.2em .5em; border-radius:.25rem; font-family:monospace; font-weight:600; }
-    .adapter-warehouse  { background:#cce5ff; color:#004085; }
-    .adapter-shipping   { background:#e2d9f3; color:#4a235a; }
-    .adapter-inventory  { background:#d6f5e3; color:#1a4731; }
-    .adapter-storepos   { background:#fde8d0; color:#7a3210; }
-    .adapter-support    { background:#fef3cd; color:#7a5c00; }
-
-    .failure-bar { height:6px; border-radius:3px; background:#dee2e6; min-width:60px; display:inline-block; vertical-align:middle; margin-left:6px; }
+    .order-link { font-weight:700; color:#3b82f6; text-decoration:none; }
+    .order-link:hover { color:#1d4ed8; text-decoration:underline; }
+    .msg-type-badge { font-size:.73rem; padding:.22em .5em; border-radius:.25rem; background:#e9ecef; color:#495057; font-family:monospace; font-weight:600; }
+    .msg-type-fulfillment { background:#dbeafe; color:#1e40af; }
+    .msg-type-shipping    { background:#ede9fe; color:#5b21b6; }
+    .msg-type-inventory   { background:#d1fae5; color:#065f46; }
+    .adapter-badge { font-size:.73rem; padding:.22em .5em; border-radius:.25rem; font-family:monospace; font-weight:700; }
+    .adapter-warehouse  { background:#dbeafe; color:#1e40af; }
+    .adapter-shipping   { background:#ede9fe; color:#5b21b6; }
+    .adapter-inventory  { background:#d1fae5; color:#065f46; }
+    .adapter-storepos   { background:#ffedd5; color:#9a3412; }
+    .adapter-support    { background:#fef9c3; color:#713f12; }
+    .failure-bar { height:6px; border-radius:3px; background:#e2e8f0; min-width:60px; display:inline-block; vertical-align:middle; margin-left:6px; }
     .failure-bar-fill { height:100%; border-radius:3px; }
-
-    .corr-id { font-family:monospace; font-size:.78rem; color:#6c757d; }
-    .error-tooltip { cursor:help; border-bottom:1px dashed #adb5bd; }
+    .corr-id { font-family:monospace; font-size:.78rem; color:#718096; }
+    .error-tooltip { cursor:help; border-bottom:1px dashed #a0aec0; }
+    .dataTables_wrapper .dataTables_length,
+    .dataTables_wrapper .dataTables_filter { padding-top: .4rem; }
+    .dataTables_wrapper .dataTables_info { font-size: .8rem; color: #718096; padding-top: .6rem; }
+    .ops-section div.dt-container div.dt-layout-row {
+        align-items: center;
+        margin: .65rem 0 0;
+    }
+    .ops-section div.dt-container div.dt-info,
+    .ops-section div.dt-container div.dt-length {
+        color: #718096;
+        font-size: .8rem;
+    }
+    .ops-section div.dt-container div.dt-paging nav {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+    }
+    .ops-section div.dt-container button.dt-paging-button {
+        appearance: none;
+        -webkit-appearance: none;
+        border-radius: 6px !important;
+        font-size: .8rem !important;
+        font-weight: 600;
+        line-height: 1.35;
+        padding: .3rem .65rem !important;
+        border: 1.5px solid #e2e8f0 !important;
+        background: #fff !important;
+        color: #4a5568 !important;
+        cursor: pointer;
+        min-width: 2rem;
+    }
+    .ops-section div.dt-container button.dt-paging-button.current,
+    .ops-section div.dt-container button.dt-paging-button.current:hover {
+        background: #3b82f6 !important;
+        border-color: #3b82f6 !important;
+        color: #fff !important;
+    }
+    .ops-section div.dt-container button.dt-paging-button:hover:not(.current):not(.disabled) {
+        background: #edf2f7 !important;
+        border-color: #a0aec0 !important;
+        color: #2d3748 !important;
+    }
+    .ops-section div.dt-container button.dt-paging-button.disabled {
+        opacity: .45 !important;
+        cursor: default !important;
+    }
+    .dataTables_wrapper .dataTables_paginate .paginate_button {
+        border-radius: 6px !important; font-size: .8rem !important;
+        padding: .3rem .65rem !important; margin: 0 2px !important;
+        border: 1.5px solid #e2e8f0 !important; background: #fff !important;
+        color: #4a5568 !important;
+    }
+    .dataTables_wrapper .dataTables_paginate .paginate_button.current {
+        background: #3b82f6 !important; color: #fff !important;
+        border-color: #3b82f6 !important; font-weight: 700 !important;
+    }
+    .dataTables_wrapper .dataTables_paginate .paginate_button:hover:not(.current) {
+        background: #edf2f7 !important; color: #2d3748 !important;
+        border-color: #a0aec0 !important;
+    }
+    .dataTables_wrapper .dataTables_paginate .paginate_button.disabled {
+        opacity: .4 !important; cursor: default !important;
+    }
+    .dataTables_wrapper select.form-control,
+    .dataTables_wrapper input.form-control {
+        border-radius: 6px; border: 1.5px solid #e2e8f0; font-size: .82rem;
+    }
 </style>
 
 <div class="content-header clearfix">
@@ -64,8 +165,15 @@
 
         @* ── Outbox ── *@
         <div class="card card-default ops-section">
-            <div class="card-header">
-                <h5 class="mb-0">Outbox</h5>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5>
+                    <span class="section-icon icon-outbox">&#x1F4EC;</span>
+                    Outbox
+                    <span class="section-count" id="outbox-count">—</span>
+                </h5>
+                <button class="ops-refresh-btn" onclick="$('#outbox-grid').DataTable().ajax.reload()">
+                    <span class="spin">&#x21bb;</span> Refresh
+                </button>
             </div>
             <div class="card-body">
                 @await Html.PartialAsync("Table", new DataTablesModel
@@ -123,8 +231,15 @@
 
         @* ── Dead Letters ── *@
         <div class="card card-default ops-section">
-            <div class="card-header">
-                <h5 class="mb-0">Dead Letters</h5>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5>
+                    <span class="section-icon icon-deadletter">&#x26A0;&#xFE0F;</span>
+                    Dead Letters
+                    <span class="section-count" id="deadletter-count">—</span>
+                </h5>
+                <button class="ops-refresh-btn" onclick="$('#deadletter-grid').DataTable().ajax.reload()">
+                    <span class="spin">&#x21bb;</span> Refresh
+                </button>
             </div>
             <div class="card-body">
                 @await Html.PartialAsync("Table", new DataTablesModel
@@ -182,8 +297,14 @@
         @* ── Circuit Breaker State ── *@
         <div class="card card-default ops-section">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Circuit Breaker State</h5>
-                <button class="btn btn-sm btn-outline-secondary" onclick="refreshCircuitBreakers()">&#x21bb; Refresh</button>
+                <h5>
+                    <span class="section-icon icon-circuit">&#x26A1;</span>
+                    Circuit Breaker State
+                    <span class="section-count" id="cb-count">—</span>
+                </h5>
+                <button class="ops-refresh-btn" onclick="refreshCircuitBreakers()">
+                    <span class="spin">&#x21bb;</span> Refresh
+                </button>
             </div>
             <div class="card-body p-0">
                 <table class="table ops-table mb-0" id="circuit-breaker-table">
@@ -208,8 +329,14 @@
         @* ── Inventory Projection ── *@
         <div class="card card-default ops-section">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Inventory Projection — Stale &amp; Conflicted</h5>
-                <button class="btn btn-sm btn-outline-secondary" onclick="refreshInventoryProjections()">&#x21bb; Refresh</button>
+                <h5>
+                    <span class="section-icon icon-inventory">&#x1F4E6;</span>
+                    Inventory Projection — Stale &amp; Conflicted
+                    <span class="section-count" id="inv-count">—</span>
+                </h5>
+                <button class="ops-refresh-btn" onclick="refreshInventoryProjections()">
+                    <span class="spin">&#x21bb;</span> Refresh
+                </button>
             </div>
             <div class="card-body p-0">
                 <table class="table ops-table mb-0" id="inventory-projection-table">
@@ -327,7 +454,7 @@
     function renderRequeueOutbox(data, type, row) {
         var s = row.Status || row.status || '';
         if (s === 'Failed' || s === 'Retrying') {
-            return '<button onclick="requeueOutbox(' + data + ')" class="btn btn-sm btn-warning requeue-btn">&#x21ba; Requeue</button>';
+            return '<button onclick="requeueOutbox(' + data + ')" class="requeue-btn requeue-btn-warn" title="Reset to Pending and retry">&#x21ba; Requeue</button>';
         }
         return '';
     }
@@ -335,7 +462,7 @@
     function renderRequeueDeadLetter(data, type, row) {
         var s = row.EscalationState || row.escalationState || '';
         if (s === 'New' || s === 'Acknowledged') {
-            return '<button onclick="requeueDeadLetter(' + data + ')" class="btn btn-sm btn-danger requeue-btn">&#x21ba; Requeue</button>';
+            return '<button onclick="requeueDeadLetter(' + data + ')" class="requeue-btn requeue-btn-danger" title="Create new outbox record from dead letter">&#x21ba; Requeue</button>';
         }
         return '';
     }
@@ -360,6 +487,7 @@
             .done(function (data) {
                 var tbody = $('#circuit-breaker-body');
                 tbody.empty();
+                $('#cb-count').text(data ? data.length : 0);
                 if (!data || data.length === 0) {
                     tbody.append('<tr><td colspan="7" class="ops-empty">No circuit breaker state recorded yet.</td></tr>');
                     return;
@@ -410,6 +538,7 @@
             .done(function (data) {
                 var tbody = $('#inventory-projection-body');
                 tbody.empty();
+                $('#inv-count').text(data ? data.length : 0);
                 if (!data || data.length === 0) {
                     tbody.append('<tr><td colspan="9" class="ops-empty">No stale or conflicted inventory records.</td></tr>');
                     return;
@@ -452,5 +581,15 @@
     $(document).ready(function () {
         refreshCircuitBreakers();
         refreshInventoryProjections();
+
+        // update header counters when DataTables finish loading
+        $(document).on('draw.dt', '#outbox-grid', function () {
+            var info = $(this).DataTable().page.info();
+            $('#outbox-count').text(info.recordsTotal);
+        });
+        $(document).on('draw.dt', '#deadletter-grid', function () {
+            var info = $(this).DataTable().page.info();
+            $('#deadletter-count').text(info.recordsTotal);
+        });
     });
 </script>
