@@ -103,5 +103,24 @@ public partial class OperationsModelFactory : IOperationsModelFactory
         }).ToList();
     }
 
+    public virtual async Task<IList<InventoryProjectionModel>> PrepareInventoryProjectionModelsAsync()
+    {
+        var records = await _integrationRecordService.GetStaleOrConflictedProjectionsAsync();
+
+        return records.Select(r => new InventoryProjectionModel
+        {
+            Id = r.Id,
+            ProductId = r.ProductId,
+            SourceSystem = r.SourceSystem,
+            ReportedQuantity = r.ReportedQuantity,
+            LastConfirmedUtc = r.LastConfirmedUtc.ToString("yyyy-MM-dd HH:mm:ss"),
+            IsStale = r.IsStale,
+            ConflictFlag = r.ConflictFlag,
+            PendingReconciliation = r.PendingReconciliation,
+            ResolvedAtUtc = r.ResolvedAtUtc?.ToString("yyyy-MM-dd HH:mm:ss"),
+            UpdatedAtUtc = r.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss")
+        }).ToList();
+    }
+
     #endregion
 }

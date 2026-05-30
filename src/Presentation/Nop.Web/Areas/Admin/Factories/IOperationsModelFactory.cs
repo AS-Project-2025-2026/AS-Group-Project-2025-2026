@@ -8,4 +8,5 @@ public partial interface IOperationsModelFactory
     Task<OutboxRecordListModel> PrepareOutboxListModelAsync(OutboxSearchModel searchModel);
     Task<DeadLetterRecordListModel> PrepareDeadLetterListModelAsync(DeadLetterSearchModel searchModel);
     Task<IList<CircuitBreakerStateModel>> PrepareCircuitBreakerModelsAsync();
+    Task<IList<InventoryProjectionModel>> PrepareInventoryProjectionModelsAsync();
 }

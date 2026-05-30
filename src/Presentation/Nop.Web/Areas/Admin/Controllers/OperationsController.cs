@@ -62,6 +62,13 @@ public partial class OperationsController : BaseAdminController
         return Json(model);
     }
 
+    [CheckPermission(StandardPermission.System.MANAGE_MAINTENANCE)]
+    public virtual async Task<IActionResult> InventoryProjectionList()
+    {
+        var model = await _operationsModelFactory.PrepareInventoryProjectionModelsAsync();
+        return Json(model);
+    }
+
     [HttpPost]
     [CheckPermission(StandardPermission.System.MANAGE_MAINTENANCE)]
     public virtual async Task<IActionResult> RequeueOutbox(int id)

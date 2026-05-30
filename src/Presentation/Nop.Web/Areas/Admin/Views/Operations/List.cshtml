@@ -163,6 +163,33 @@
                     </table>
                 </div>
             </div>
+
+            <div class="card card-default">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Inventory Projection — Stale &amp; Conflicted</h5>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="refreshInventoryProjections()">Refresh</button>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-bordered" id="inventory-projection-table">
+                        <thead>
+                            <tr>
+                                <th>Product ID</th>
+                                <th>Source</th>
+                                <th>Reported Qty</th>
+                                <th>Last Confirmed (UTC)</th>
+                                <th>Stale</th>
+                                <th>Conflict</th>
+                                <th>Pending Reconciliation</th>
+                                <th>Resolved (UTC)</th>
+                                <th>Updated (UTC)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventory-projection-body">
+                            <tr><td colspan="9" class="text-muted text-center">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 </section>
@@ -225,5 +252,41 @@
             });
     }
 
-    $(document).ready(function () { refreshCircuitBreakers(); });
+    function refreshInventoryProjections() {
+        $.get('@Url.Action("InventoryProjectionList", "Operations")')
+            .done(function (data) {
+                var tbody = $('#inventory-projection-body');
+                tbody.empty();
+                if (!data || data.length === 0) {
+                    tbody.append('<tr><td colspan="9" class="text-muted text-center">No stale or conflicted inventory records.</td></tr>');
+                    return;
+                }
+                $.each(data, function (i, r) {
+                    var rowClass = '';
+                    if (r.conflictFlag) rowClass = 'table-danger';
+                    else if (r.isStale) rowClass = 'table-warning';
+                    else if (r.resolvedAtUtc) rowClass = 'table-success';
+
+                    tbody.append('<tr class="' + rowClass + '">'
+                        + '<td>' + r.productId + '</td>'
+                        + '<td>' + (r.sourceSystem || '') + '</td>'
+                        + '<td>' + r.reportedQuantity + '</td>'
+                        + '<td>' + (r.lastConfirmedUtc || '') + '</td>'
+                        + '<td>' + (r.isStale ? '<span class="text-warning fw-bold">YES</span>' : 'no') + '</td>'
+                        + '<td>' + (r.conflictFlag ? '<span class="text-danger fw-bold">YES</span>' : 'no') + '</td>'
+                        + '<td>' + (r.pendingReconciliation ? '<span class="text-warning">YES</span>' : 'no') + '</td>'
+                        + '<td>' + (r.resolvedAtUtc || '—') + '</td>'
+                        + '<td>' + (r.updatedAtUtc || '') + '</td>'
+                        + '</tr>');
+                });
+            })
+            .fail(function () {
+                $('#inventory-projection-body').html('<tr><td colspan="9" class="text-danger">Failed to load inventory projections.</td></tr>');
+            });
+    }
+
+    $(document).ready(function () {
+        refreshCircuitBreakers();
+        refreshInventoryProjections();
+    });
 </script>

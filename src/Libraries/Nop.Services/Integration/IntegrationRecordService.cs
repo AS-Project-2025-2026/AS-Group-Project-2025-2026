@@ -15,6 +15,7 @@ public partial class IntegrationRecordService : IIntegrationRecordService
     protected readonly IRepository<DeadLetterRecord> _deadLetterRepository;
     protected readonly IRepository<IdempotencyRecord> _idempotencyRepository;
     protected readonly IRepository<CircuitBreakerStateRecord> _circuitBreakerRepository;
+    protected readonly IRepository<InventoryProjectionRecord> _inventoryProjectionRepository;
     protected readonly IOrderService _orderService;
 
     #endregion
@@ -26,12 +27,14 @@ public partial class IntegrationRecordService : IIntegrationRecordService
         IRepository<DeadLetterRecord> deadLetterRepository,
         IRepository<IdempotencyRecord> idempotencyRepository,
         IRepository<CircuitBreakerStateRecord> circuitBreakerRepository,
+        IRepository<InventoryProjectionRecord> inventoryProjectionRepository,
         IOrderService orderService)
     {
         _outboxRepository = outboxRepository;
         _deadLetterRepository = deadLetterRepository;
         _idempotencyRepository = idempotencyRepository;
         _circuitBreakerRepository = circuitBreakerRepository;
+        _inventoryProjectionRepository = inventoryProjectionRepository;
         _orderService = orderService;
     }
 
@@ -151,6 +154,14 @@ public partial class IntegrationRecordService : IIntegrationRecordService
     public virtual async Task InsertIdempotencyRecordAsync(IdempotencyRecord record)
     {
         await _idempotencyRepository.InsertAsync(record);
+    }
+
+    public virtual async Task<IList<InventoryProjectionRecord>> GetStaleOrConflictedProjectionsAsync()
+    {
+        return await _inventoryProjectionRepository.Table
+            .Where(r => r.IsStale || r.ConflictFlag || r.PendingReconciliation)
+            .OrderByDescending(r => r.UpdatedAtUtc)
+            .ToListAsync();
     }
 
     #endregion

@@ -28,17 +28,21 @@ public class InventorySyncService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("InventorySyncService started — polling every {Interval}s", _opts.SyncIntervalSeconds);
+        _logger.LogInformation(
+            "InventorySyncService started — polling every {Interval}s, staleness threshold {Threshold}s, conflict tolerance {Tolerance} units",
+            _opts.SyncIntervalSeconds, _opts.StalenessThresholdSeconds, _opts.ConflictToleranceUnits);
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
                 await SyncStockAsync(stoppingToken);
+                await MarkStaleAsync();
+                await ResolveConflictsAsync();
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "InventorySyncService encountered an error — will retry next cycle");
+                _logger.LogWarning(ex, "InventorySyncService error — will retry next cycle");
             }
 
             await Task.Delay(TimeSpan.FromSeconds(_opts.SyncIntervalSeconds), stoppingToken);
@@ -57,11 +61,52 @@ public class InventorySyncService : BackgroundService
         var updated = 0;
         foreach (var item in items)
         {
-            var rows = await _data.UpdateProductStockAsync(item.ProductId, item.Quantity);
-            if (rows > 0)
-                updated++;
+            var others = await _data.GetProjectionsByProductAsync(item.ProductId);
+            var otherSource = others.FirstOrDefault(p => p.SourceSystem != _opts.SourceSystem);
+
+            bool conflictFlag = false;
+            bool pendingReconciliation = false;
+            int checkoutQty = item.Quantity;
+
+            if (otherSource != null)
+            {
+                var diff = Math.Abs(item.Quantity - otherSource.ReportedQuantity);
+                if (diff > _opts.ConflictToleranceUnits)
+                {
+                    conflictFlag = true;
+                    pendingReconciliation = true;
+                    checkoutQty = Math.Min(item.Quantity, otherSource.ReportedQuantity);
+                    _logger.LogWarning(
+                        "Inventory conflict on ProductId={ProductId}: {Source}={Qty} vs {OtherSource}={OtherQty} (diff={Diff}, tolerance={Tolerance}) — checkout capped at {CheckoutQty}",
+                        item.ProductId, _opts.SourceSystem, item.Quantity,
+                        otherSource.SourceSystem, otherSource.ReportedQuantity,
+                        diff, _opts.ConflictToleranceUnits, checkoutQty);
+                }
+            }
+
+            await _data.UpsertInventoryProjectionAsync(
+                item.ProductId, _opts.SourceSystem, item.Quantity,
+                isStale: false, conflictFlag, pendingReconciliation);
+
+            var rows = await _data.UpdateProductStockAsync(item.ProductId, checkoutQty);
+            if (rows > 0) updated++;
         }
 
         _logger.LogInformation("Inventory sync complete — {Updated}/{Total} products updated", updated, items.Count);
+    }
+
+    private async Task MarkStaleAsync()
+    {
+        var marked = await _data.MarkStaleProjectionsAsync(_opts.StalenessThresholdSeconds);
+        if (marked > 0)
+            _logger.LogWarning("Inventory staleness: {Count} projection(s) marked IsStale=true (threshold={Threshold}s)",
+                marked, _opts.StalenessThresholdSeconds);
+    }
+
+    private async Task ResolveConflictsAsync()
+    {
+        var resolved = await _data.ResolveConflictsAsync(_opts.ConflictToleranceUnits);
+        if (resolved > 0)
+            _logger.LogInformation("Inventory conflict auto-resolved: {Count} record(s) cleared", resolved);
     }
 }

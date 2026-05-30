@@ -154,6 +154,9 @@ services:
       Shipping__BaseUrl: http://shipping_stub:8080
       Inventory__BaseUrl: http://inventory_stub:8080
       Inventory__SyncIntervalSeconds: ${INVENTORY_SYNC_INTERVAL:-30}
+      Inventory__StalenessThresholdSeconds: ${INVENTORY_STALENESS_THRESHOLD:-120}
+      Inventory__ConflictToleranceUnits: ${INVENTORY_CONFLICT_TOLERANCE:-2}
+      Inventory__SourceSystem: wms
       StorePos__BaseUrl: http://storepos_stub:8080
       CustomerSupport__BaseUrl: http://customersupport_stub:8080
       Worker__PollingIntervalSeconds: ${WORKER_POLLING_INTERVAL:-5}

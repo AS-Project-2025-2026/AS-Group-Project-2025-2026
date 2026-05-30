@@ -20,4 +20,6 @@ public partial interface IIntegrationRecordService
     Task<IdempotencyRecord> GetIdempotencyRecordByKeyAsync(string key);
 
     Task InsertIdempotencyRecordAsync(IdempotencyRecord record);
+
+    Task<IList<InventoryProjectionRecord>> GetStaleOrConflictedProjectionsAsync();
 }

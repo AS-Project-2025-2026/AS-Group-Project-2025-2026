@@ -190,4 +190,95 @@ public class WorkerDataService
         using var conn = OpenConnection();
         return await conn.ExecuteAsync(sql, new { productId, quantity });
     }
+
+    public async Task UpsertInventoryProjectionAsync(
+        int productId, string sourceSystem, int quantity,
+        bool isStale, bool conflictFlag, bool pendingReconciliation)
+    {
+        const string sql = """
+            MERGE InventoryProjectionRecord AS target
+            USING (SELECT @productId AS ProductId, @sourceSystem AS SourceSystem) AS source
+                ON target.ProductId = source.ProductId AND target.SourceSystem = source.SourceSystem
+            WHEN MATCHED THEN
+                UPDATE SET ReportedQuantity = @quantity,
+                           LastConfirmedUtc = @now,
+                           IsStale = @isStale,
+                           ConflictFlag = @conflictFlag,
+                           PendingReconciliation = @pendingReconciliation,
+                           UpdatedAtUtc = @now
+            WHEN NOT MATCHED THEN
+                INSERT (ProductId, SourceSystem, ReportedQuantity, LastConfirmedUtc,
+                        IsStale, ConflictFlag, PendingReconciliation, UpdatedAtUtc)
+                VALUES (@productId, @sourceSystem, @quantity, @now,
+                        @isStale, @conflictFlag, @pendingReconciliation, @now);
+            """;
+
+        using var conn = OpenConnection();
+        await conn.ExecuteAsync(sql, new
+        {
+            productId, sourceSystem, quantity,
+            isStale, conflictFlag, pendingReconciliation,
+            now = DateTime.UtcNow
+        });
+    }
+
+    public async Task<List<InventoryProjectionDto>> GetProjectionsByProductAsync(int productId)
+    {
+        const string sql = """
+            SELECT Id, ProductId, SourceSystem, ReportedQuantity, LastConfirmedUtc,
+                   IsStale, ConflictFlag, PendingReconciliation, ResolvedAtUtc, UpdatedAtUtc
+            FROM InventoryProjectionRecord
+            WHERE ProductId = @productId
+            """;
+
+        using var conn = OpenConnection();
+        var results = await conn.QueryAsync<InventoryProjectionDto>(sql, new { productId });
+        return results.ToList();
+    }
+
+    public async Task<List<InventoryProjectionDto>> GetStaleOrConflictedProjectionsAsync()
+    {
+        const string sql = """
+            SELECT Id, ProductId, SourceSystem, ReportedQuantity, LastConfirmedUtc,
+                   IsStale, ConflictFlag, PendingReconciliation, ResolvedAtUtc, UpdatedAtUtc
+            FROM InventoryProjectionRecord
+            WHERE IsStale = 1 OR ConflictFlag = 1 OR PendingReconciliation = 1
+            ORDER BY UpdatedAtUtc DESC
+            """;
+
+        using var conn = OpenConnection();
+        var results = await conn.QueryAsync<InventoryProjectionDto>(sql);
+        return results.ToList();
+    }
+
+    public async Task<int> MarkStaleProjectionsAsync(int stalenessThresholdSeconds)
+    {
+        const string sql = """
+            UPDATE InventoryProjectionRecord
+            SET IsStale = 1, PendingReconciliation = 1, UpdatedAtUtc = @now
+            WHERE IsStale = 0
+              AND DATEDIFF(SECOND, LastConfirmedUtc, @now) > @threshold
+            """;
+
+        using var conn = OpenConnection();
+        return await conn.ExecuteAsync(sql, new { now = DateTime.UtcNow, threshold = stalenessThresholdSeconds });
+    }
+
+    public async Task<int> ResolveConflictsAsync(int toleranceUnits, int autoResolveMins = 30)
+    {
+        const string sql = """
+            UPDATE p1
+            SET p1.ConflictFlag = 0, p1.PendingReconciliation = 0,
+                p1.ResolvedAtUtc = @now, p1.UpdatedAtUtc = @now
+            FROM InventoryProjectionRecord p1
+            JOIN InventoryProjectionRecord p2
+                ON p1.ProductId = p2.ProductId AND p1.SourceSystem != p2.SourceSystem
+            WHERE p1.ConflictFlag = 1
+              AND ABS(p1.ReportedQuantity - p2.ReportedQuantity) <= @tolerance
+              AND DATEDIFF(MINUTE, p1.UpdatedAtUtc, @now) >= @autoResolveMins
+            """;
+
+        using var conn = OpenConnection();
+        return await conn.ExecuteAsync(sql, new { now = DateTime.UtcNow, tolerance = toleranceUnits, autoResolveMins });
+    }
 }
