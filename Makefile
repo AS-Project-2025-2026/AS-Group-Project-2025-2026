@@ -17,6 +17,7 @@ BOLD   := \033[1m
 NC     := \033[0m
 
 .PHONY: help up down reset logs \
+        order order-burst order-loop \
         demo-healthy demo-degraded \
         stale-start stale-stop \
         conflict-inject conflict-clear \
@@ -39,7 +40,12 @@ help: ## Show this help
 	@printf "  %-28s %s\n" "make logs"           "Follow integration_worker logs"
 	@printf "  %-28s %s\n" "make status"         "Show health of all services"
 	@echo ""
-	@echo "  $(CYAN)Demo data$(NC)"
+	@echo "  $(CYAN)Real orders (triggers outbox + worker)$(NC)"
+	@printf "  %-28s %s\n" "make order"          "Place 1 real order through checkout"
+	@printf "  %-28s %s\n" "make order-burst"    "Place 5 orders in sequence"
+	@printf "  %-28s %s\n" "make order-loop"     "Place 1 order every 20s until Ctrl+C"
+	@echo ""
+	@echo "  $(CYAN)Demo snapshots (SQL-injected, no checkout)$(NC)"
 	@printf "  %-28s %s\n" "make demo-healthy"   "Populate Operations View — all green"
 	@printf "  %-28s %s\n" "make demo-degraded"  "Populate Operations View — failures visible"
 	@echo ""
@@ -160,13 +166,31 @@ status: ## Show health status of all services
 	@echo ""
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Demo data
+# Real orders
 # ─────────────────────────────────────────────────────────────────────────────
 
-demo-healthy: ## Populate Operations View with all-green state
+order: ## Place 1 real order through the checkout (triggers outbox + worker)
+	@./place-order.sh 1
+
+order-burst: ## Place 5 orders in sequence (shows outbox filling up)
+	@./place-order.sh 5
+
+order-loop: ## Keep placing 1 order every 20s until Ctrl+C (run in a separate terminal)
+	@echo "$(YELLOW)[...]$(NC)  Placing orders every 20s — Ctrl+C to stop"
+	@while true; do \
+		./place-order.sh 1 || echo "$(YELLOW)[WARN]$(NC) order failed, retrying next cycle"; \
+		echo "$(YELLOW)[...]$(NC)  Next order in 20s..."; \
+		sleep 20; \
+	done
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Demo data (SQL-injected snapshots — no real checkout)
+# ─────────────────────────────────────────────────────────────────────────────
+
+demo-healthy: ## Populate Operations View with all-green state (SQL snapshot)
 	@./place-demo-orders.sh healthy
 
-demo-degraded: ## Populate Operations View with failures, retries, dead letters
+demo-degraded: ## Populate Operations View with failures, retries, dead letters (SQL snapshot)
 	@./place-demo-orders.sh degraded
 
 # ─────────────────────────────────────────────────────────────────────────────
