@@ -214,25 +214,26 @@ stale-stop: ## Restore inventory stub — IsStale clears on next sync cycle
 # QAS 6 — Inventory Conflict (POS vs WMS)
 # ─────────────────────────────────────────────────────────────────────────────
 
-conflict-inject: ## Inject a POS stock value that conflicts with WMS (diff > 2 units)
-	@echo "$(YELLOW)[...]$(NC)  Injecting POS conflict for product 1 (POS=50, WMS will report ~10-200)..."
-	@$(SQL_CMD) -Q "\
-		MERGE InventoryProjectionRecord AS t \
-		USING (SELECT 1 AS ProductId, 'pos' AS SourceSystem) AS s \
-			ON t.ProductId = s.ProductId AND t.SourceSystem = s.SourceSystem \
-		WHEN MATCHED THEN \
-			UPDATE SET ReportedQuantity=50, LastConfirmedUtc=GETUTCDATE(), \
-				IsStale=0, ConflictFlag=0, PendingReconciliation=0, UpdatedAtUtc=GETUTCDATE() \
-		WHEN NOT MATCHED THEN \
-			INSERT (ProductId, SourceSystem, ReportedQuantity, LastConfirmedUtc, \
-				IsStale, ConflictFlag, PendingReconciliation, UpdatedAtUtc) \
-			VALUES (1, 'pos', 50, GETUTCDATE(), 0, 0, 0, GETUTCDATE());" > /dev/null 2>&1
-	@echo "$(GREEN)[OK]$(NC)    POS row inserted: product 1 = 50 units"
+conflict-inject: ## Inject a POS stock value that conflicts with WMS via stub API (diff > 2 units)
+	@echo "$(YELLOW)[...]$(NC)  Reporting POS stock via stub API: product 1 = 3 units..."
+	@result=$$(curl -s -X POST $(INV_URL)/stock/pos-report \
+		-H "Content-Type: application/json" \
+		-d '{"productId": 1, "quantity": 3}'); \
+	echo "$$result" | python3 -c "import sys,json; d=json.load(sys.stdin); \
+		print('$(GREEN)[OK]$(NC)    POS reported: productId=' + str(d.get('productId','?')) + \
+		'  posQty=' + str(d.get('posQuantity','?')) + \
+		'  wmsQty=' + str(d.get('wmsQuantity','?')) + \
+		'  conflict=' + str(d.get('conflict','?')))" 2>/dev/null \
+	|| echo "$(RED)[FAIL]$(NC)  Could not reach inventory stub at $(INV_URL)"
 	@echo "       Wait ~10s for next sync cycle to detect conflict"
 	@echo "       Operations → Inventory tab should show ConflictFlag=true (red row)"
 
-conflict-clear: ## Remove all POS projection rows and reset conflict flags
-	@echo "$(YELLOW)[...]$(NC)  Clearing POS rows and conflict flags..."
+conflict-clear: ## Clear POS stock from stub and reset conflict flags in DB
+	@echo "$(YELLOW)[...]$(NC)  Clearing POS stock from stub..."
+	@curl -s -X POST $(INV_URL)/stock/pos-report \
+		-H "Content-Type: application/json" \
+		-d '{"productId": 1, "quantity": 0}' > /dev/null 2>&1 || true
+	@echo "$(YELLOW)[...]$(NC)  Resetting conflict flags in DB..."
 	@$(SQL_CMD) -Q "\
 		DELETE FROM InventoryProjectionRecord WHERE SourceSystem = 'pos'; \
 		UPDATE InventoryProjectionRecord \
