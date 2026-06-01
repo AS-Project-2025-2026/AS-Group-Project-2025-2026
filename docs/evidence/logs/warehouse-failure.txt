@@ -1,40 +1,13 @@
-      Adapter call succeeded. Adapter=shipping CorrelationId=order-9 IdempotencyKey=9ca7bcd8-fa0c-4c54-a6e7-e41a47411fad OutboxRecordId=(null) RetryAttempt=0
-      Message published. Adapter=shipping CorrelationId=order-9 OrderId=9 TrackingNumber=TRK-unknown RetryAttempt=1
-      Adapter call succeeded. Adapter=customersupport CorrelationId=order-9 IdempotencyKey=ee882efe-ead0-41ea-888f-b18889711645 OutboxRecordId=(null) RetryAttempt=0
-      Message published. Adapter=customersupport CorrelationId=order-9 OrderId=9 TicketId=TKT-unknown-GENERAL RetryAttempt=1
-      Adapter call started. Adapter=rabbitmq CorrelationId=order-10 IdempotencyKey=0320b5f1-2192-45e1-927e-8b992f2331a8 OutboxRecordId=13 RetryAttempt=0
-      Adapter call succeeded. Adapter=rabbitmq CorrelationId=order-10 IdempotencyKey=0320b5f1-2192-45e1-927e-8b992f2331a8 OutboxRecordId=13 RetryAttempt=0
-      Adapter call started. Adapter=warehouse CorrelationId=order-10 IdempotencyKey=0320b5f1-2192-45e1-927e-8b992f2331a8 OutboxRecordId=(null) RetryAttempt=0
-      Adapter call succeeded. Adapter=warehouse CorrelationId=order-10 IdempotencyKey=0320b5f1-2192-45e1-927e-8b992f2331a8 OutboxRecordId=(null) RetryAttempt=0
-      Message published. Adapter=warehouse CorrelationId=order-10 OrderId=10 RetryAttempt=1
-      Adapter call started. Adapter=customersupport CorrelationId=order-10 IdempotencyKey=70ffdc89-1b5b-422c-9361-471c0866e966 OutboxRecordId=(null) RetryAttempt=0
-      Adapter call started. Adapter=shipping CorrelationId=order-10 IdempotencyKey=0e70d15c-dd1f-4777-976d-1d57de8b067d OutboxRecordId=(null) RetryAttempt=0
-      Adapter call succeeded. Adapter=shipping CorrelationId=order-10 IdempotencyKey=0e70d15c-dd1f-4777-976d-1d57de8b067d OutboxRecordId=(null) RetryAttempt=0
-      Adapter call succeeded. Adapter=customersupport CorrelationId=order-10 IdempotencyKey=70ffdc89-1b5b-422c-9361-471c0866e966 OutboxRecordId=(null) RetryAttempt=0
-      Message published. Adapter=customersupport CorrelationId=order-10 OrderId=10 TicketId=TKT-unknown-GENERAL RetryAttempt=1
-      Message published. Adapter=shipping CorrelationId=order-10 OrderId=10 TrackingNumber=TRK-unknown RetryAttempt=1
-      Adapter call started. Adapter=rabbitmq CorrelationId=order-11 IdempotencyKey=287aca44-c783-4828-9911-09f4f61293f9 OutboxRecordId=14 RetryAttempt=0
-      Adapter call succeeded. Adapter=rabbitmq CorrelationId=order-11 IdempotencyKey=287aca44-c783-4828-9911-09f4f61293f9 OutboxRecordId=14 RetryAttempt=0
-      Adapter call started. Adapter=warehouse CorrelationId=order-11 IdempotencyKey=287aca44-c783-4828-9911-09f4f61293f9 OutboxRecordId=(null) RetryAttempt=0
-      Warehouse /fulfillment → 500: {"status":"failed","reason":"warehouse_simulated_failure","correlationId":"order-11"}
-      Adapter call failed. Adapter=warehouse CorrelationId=order-11 IdempotencyKey=287aca44-c783-4828-9911-09f4f61293f9 OutboxRecordId=(null) RetryAttempt=0 Error=Response status code does not indicate success: 500 (Internal Server Error). CircuitState=Closed
-      Retry scheduled. Adapter=warehouse CorrelationId=order-11 RetryAttempt=1 DelaySeconds=2
-      Adapter call started. Adapter=warehouse CorrelationId=order-11 IdempotencyKey=287aca44-c783-4828-9911-09f4f61293f9 OutboxRecordId=(null) RetryAttempt=1
-      Warehouse /fulfillment → 500: {"status":"failed","reason":"warehouse_simulated_failure","correlationId":"order-11"}
-      Adapter call failed. Adapter=warehouse CorrelationId=order-11 IdempotencyKey=287aca44-c783-4828-9911-09f4f61293f9 OutboxRecordId=(null) RetryAttempt=1 Error=Response status code does not indicate success: 500 (Internal Server Error). CircuitState=Closed
-      Retry scheduled. Adapter=warehouse CorrelationId=order-11 RetryAttempt=2 DelaySeconds=4
-      Adapter call started. Adapter=warehouse CorrelationId=order-11 IdempotencyKey=287aca44-c783-4828-9911-09f4f61293f9 OutboxRecordId=(null) RetryAttempt=2
-      Warehouse /fulfillment → 500: {"status":"failed","reason":"warehouse_simulated_failure","correlationId":"order-11"}
-      Adapter call failed. Adapter=warehouse CorrelationId=order-11 IdempotencyKey=287aca44-c783-4828-9911-09f4f61293f9 OutboxRecordId=(null) RetryAttempt=2 Error=Response status code does not indicate success: 500 (Internal Server Error). CircuitState=Closed
-      Retry scheduled. Adapter=warehouse CorrelationId=order-11 RetryAttempt=3 DelaySeconds=8
-      Adapter call started. Adapter=warehouse CorrelationId=order-11 IdempotencyKey=287aca44-c783-4828-9911-09f4f61293f9 OutboxRecordId=(null) RetryAttempt=3
-      Warehouse /fulfillment → 500: {"status":"failed","reason":"warehouse_simulated_failure","correlationId":"order-11"}
-      Adapter call failed. Adapter=warehouse CorrelationId=order-11 IdempotencyKey=287aca44-c783-4828-9911-09f4f61293f9 OutboxRecordId=(null) RetryAttempt=3 Error=Response status code does not indicate success: 500 (Internal Server Error). CircuitState=Closed
-      Retry scheduled. Adapter=warehouse CorrelationId=order-11 RetryAttempt=4 DelaySeconds=16
-      Adapter call started. Adapter=warehouse CorrelationId=order-11 IdempotencyKey=287aca44-c783-4828-9911-09f4f61293f9 OutboxRecordId=(null) RetryAttempt=4
-      Warehouse /fulfillment → 500: {"status":"failed","reason":"warehouse_simulated_failure","correlationId":"order-11"}
-      Adapter call failed. Adapter=warehouse CorrelationId=order-11 IdempotencyKey=287aca44-c783-4828-9911-09f4f61293f9 OutboxRecordId=(null) RetryAttempt=4 Error=Response status code does not indicate success: 500 (Internal Server Error). CircuitState=Open
-      Circuit breaker OPENED. Adapter=warehouse CorrelationId=order-11 ConsecutiveFailures=5 NextProbeAt=06/01/2026 10:04:52 CircuitState=Open
-      Retry scheduled. Adapter=warehouse CorrelationId=order-11 RetryAttempt=5 DelaySeconds=32
-      Circuit breaker OPEN — skipping call. Adapter=warehouse CorrelationId=order-11 NextProbeAt=06/01/2026 10:04:52 CircuitState=Open
-      Dead-letter created. Adapter=warehouse CorrelationId=order-11 IdempotencyKey=287aca44-c783-4828-9911-09f4f61293f9 OrderId=11 FailureReason=Circuit breaker OPEN for adapter 'warehouse', next probe at 2026-06-01T10:04:52.1648211Z
+      Adapter call started. Adapter=warehouse CorrelationId=order-7 IdempotencyKey=2603f173-e184-4e52-81fb-fbb162903991 OutboxRecordId=(null) RetryAttempt=0
+      Warehouse /fulfillment → 500: {"status":"failed","reason":"warehouse_simulated_failure","correlationId":"order-7"}
+      Adapter call failed. Adapter=warehouse CorrelationId=order-7 IdempotencyKey=2603f173-e184-4e52-81fb-fbb162903991 OutboxRecordId=(null) RetryAttempt=0 Error=Response status code does not indicate success: 500 (Internal Server Error). CircuitState=Closed
+      Retry scheduled. Adapter=warehouse CorrelationId=order-7 RetryAttempt=1 DelaySeconds=2
+      Adapter call started. Adapter=warehouse CorrelationId=order-7 IdempotencyKey=2603f173-e184-4e52-81fb-fbb162903991 OutboxRecordId=(null) RetryAttempt=1
+      Warehouse /fulfillment → 500: {"status":"failed","reason":"warehouse_simulated_failure","correlationId":"order-7"}
+      Adapter call failed. Adapter=warehouse CorrelationId=order-7 IdempotencyKey=2603f173-e184-4e52-81fb-fbb162903991 OutboxRecordId=(null) RetryAttempt=1 Error=Response status code does not indicate success: 500 (Internal Server Error). CircuitState=Closed
+      Retry scheduled. Adapter=warehouse CorrelationId=order-7 RetryAttempt=2 DelaySeconds=4
+      Adapter call started. Adapter=warehouse CorrelationId=order-7 IdempotencyKey=2603f173-e184-4e52-81fb-fbb162903991 OutboxRecordId=(null) RetryAttempt=2
+      Warehouse /fulfillment → 500: {"status":"failed","reason":"warehouse_simulated_failure","correlationId":"order-7"}
+      Adapter call failed. Adapter=warehouse CorrelationId=order-7 IdempotencyKey=2603f173-e184-4e52-81fb-fbb162903991 OutboxRecordId=(null) RetryAttempt=2 Error=Response status code does not indicate success: 500 (Internal Server Error). CircuitState=Open
+      Circuit breaker OPENED. Adapter=warehouse CorrelationId=order-7 ConsecutiveFailures=3 NextProbeAt=06/01/2026 14:27:53 CircuitState=Open
+      Retry scheduled. Adapter=warehouse CorrelationId=order-7 RetryAttempt=3 DelaySeconds=8

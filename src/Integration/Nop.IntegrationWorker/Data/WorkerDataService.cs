@@ -257,7 +257,7 @@ public class WorkerDataService
             UPDATE InventoryProjectionRecord
             SET IsStale = 1, PendingReconciliation = 1, UpdatedAtUtc = @now
             WHERE IsStale = 0
-              AND DATEDIFF(SECOND, LastConfirmedUtc, @now) > @threshold
+              AND DATEDIFF(SECOND, LastConfirmedUtc, @now) >= @threshold
             """;
 
         using var conn = OpenConnection();

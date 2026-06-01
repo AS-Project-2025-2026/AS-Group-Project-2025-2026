@@ -106,6 +106,13 @@ is detected within the configured 30-second threshold in the demo environment. C
 conflicts are detected within one sync cycle (10~seconds in the demo environment) and the
 conservative lower quantity is immediately applied to the checkout stock gate.
 
+\textbf{The runtime evidence exercises the real WMS/POS payload shape.} During evidence
+capture, the inventory stub returned WMS stock as \texttt{wmsQuantity} and optional POS stock
+as \texttt{posQuantity}. The Integration Worker now records the corresponding
+\texttt{SourceSystem} values instead of assuming a single \texttt{quantity} field, so the
+staleness and conflict evidence is produced from the same payload shape used by the demo
+stubs.
+
 \textbf{The nopCommerce seams identified in the checkpoint inspection are correct.} The
 \texttt{PlaceOrderAsync} method in \texttt{OrderProcessingService} provides the atomic
 write seam. The \texttt{ScheduleTaskRunner} locking mechanism is not used by the Integration
@@ -149,35 +156,51 @@ Runtime evidence is collected in \texttt{docs/evidence/} and covers the followin
 \hline
 \textbf{Scenario} & \textbf{Evidence file} & \textbf{What it shows} \\
 \hline
-Normal flow & \texttt{screenshots/05-normal-flow.png} &
+Normal flow & \path{screenshots/05-normal-flow.png} &
 Outbox records with \texttt{Published} status; all circuit breakers \texttt{Closed}. \\
 \hline
-RabbitMQ queues & \texttt{screenshots/06-rabbitmq-queues.png} &
+RabbitMQ queues & \path{screenshots/06-rabbitmq-queues-1.png};
+\path{screenshots/06-rabbitmq-queues-2.png} &
 \texttt{fulfillment.requests}, \texttt{shipping.requests}, \texttt{fulfillment.dead}, and
 \texttt{shipping.dead} queues present and active. \\
 \hline
-Warehouse failure & \texttt{screenshots/07-warehouse-failure-cb-open.png} &
+Warehouse failure & \path{screenshots/07-warehouse-failure-cb-open.png} &
 Outbox records in \texttt{Retrying} and \texttt{Failed} states; warehouse circuit breaker
 in \texttt{Open} state. \\
 \hline
-Warehouse recovery & \texttt{screenshots/08-warehouse-recovery.png} &
+Warehouse recovery & \path{screenshots/08-warehouse-recovery1.png};
+\path{screenshots/08-warehouse-recovery2.png} &
 All circuit breakers returned to \texttt{Closed}; pending records dispatched. \\
 \hline
-Dead-letter creation & \texttt{screenshots/09-deadletter-created.png} &
+Dead-letter creation & \path{screenshots/09-deadletter-created.png} &
 Dead letter record with \texttt{EscalationState = New} after shipping outage exhausts
 retries. \\
 \hline
-Dead-letter requeue & \texttt{screenshots/10-deadletter-requeued.png} &
+Dead-letter requeue & \path{screenshots/10-deadletter-requeued1.png};
+\path{screenshots/10-deadletter-requeued2.png} &
 Dead letter \texttt{EscalationState = Requeued}; new outbox record \texttt{Published}. \\
 \hline
-Inventory staleness & \texttt{screenshots/03-inventory-stale.png} &
+Inventory staleness & \path{screenshots/03-inventory-stale.png} &
 \texttt{IsStale = true} on inventory projection rows after threshold exceeded. \\
 \hline
-Inventory conflict & \texttt{screenshots/04-inventory-conflict.png} &
+Inventory conflict & \path{screenshots/04-inventory-conflict.png} &
 \texttt{ConflictFlag = true} on affected rows; checkout quantity bounded to lower value. \\
 \hline
-Worker logs & \texttt{logs/warehouse-failure.txt} &
+Worker logs & \path{logs/warehouse-failure.txt} &
 Retry attempts with exponential delay, circuit breaker open and close events. \\
+\hline
+Checkout non-blocking & \path{logs/checkout-not-blocked.txt} &
+Checkout command completes while warehouse integration remains asynchronous. \\
+\hline
+Inventory staleness log & \path{logs/staleness-evidence.txt} &
+\texttt{InventoryProjectionRecord} rows show \texttt{IsStale = 1} and
+\texttt{PendingReconciliation = 1} after the 30-second threshold. \\
+\hline
+Inventory conflict log & \path{logs/conflict-evidence.txt} &
+POS and WMS projection rows show \texttt{ConflictFlag = 1} and the lower checkout quantity. \\
+\hline
+Warehouse recovery log & \path{logs/warehouse-recovery.txt} &
+Half-open probe and circuit close events after the warehouse stub recovers. \\
 \hline
 \end{tabular}
 \end{center}
