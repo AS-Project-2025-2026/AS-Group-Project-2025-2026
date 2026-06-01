@@ -256,9 +256,12 @@ stale-start: ## Cut inventory stub (unavailable) — staleness triggers in ~30s
 
 stale-stop: ## Restore inventory stub — IsStale clears on next sync cycle
 	@echo "$(YELLOW)[...]$(NC)  Restoring inventory stub to normal..."
-	INVENTORY_STUB_MODE=normal $(COMPOSE) up -d --no-deps --no-build inventory_stub
-	@echo "$(GREEN)[OK]$(NC)    Inventory stub restored"
-	@echo "       IsStale will clear within ~10s (next sync cycle)"
+	INVENTORY_STUB_MODE=normal $(COMPOSE) up -d --force-recreate --no-deps --no-build inventory_stub
+	@$(SQL_CMD) -Q "\
+		UPDATE InventoryProjectionRecord \
+			SET IsStale=0, PendingReconciliation=0, LastConfirmedUtc=GETUTCDATE(), UpdatedAtUtc=GETUTCDATE() \
+		WHERE IsStale=1;" > /dev/null 2>&1
+	@echo "$(GREEN)[OK]$(NC)    Inventory stub restored and stale flags cleared"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # QAS 6 — Inventory Conflict (POS vs WMS)
@@ -280,12 +283,13 @@ conflict-inject: ## Inject a POS stock value that conflicts with WMS via POS stu
 
 conflict-clear: ## Clear POS projection rows and reset conflict flags in DB
 	@echo "$(YELLOW)[...]$(NC)  Resetting conflict flags in DB..."
+	@INVENTORY_STUB_MODE=normal $(COMPOSE) up -d --force-recreate --no-deps --no-build inventory_stub > /dev/null
 	@$(SQL_CMD) -Q "\
 		DELETE FROM InventoryProjectionRecord WHERE SourceSystem = 'pos'; \
 		UPDATE InventoryProjectionRecord \
-			SET ConflictFlag=0, PendingReconciliation=0, ResolvedAtUtc=GETUTCDATE(), UpdatedAtUtc=GETUTCDATE() \
-		WHERE ConflictFlag=1;" > /dev/null 2>&1
-	@echo "$(GREEN)[OK]$(NC)    Conflict cleared"
+			SET IsStale=0, ConflictFlag=0, PendingReconciliation=0, LastConfirmedUtc=GETUTCDATE(), ResolvedAtUtc=GETUTCDATE(), UpdatedAtUtc=GETUTCDATE() \
+		WHERE IsStale=1 OR ConflictFlag=1 OR PendingReconciliation=1;" > /dev/null 2>&1
+	@echo "$(GREEN)[OK]$(NC)    Conflict cleared and inventory stub reset"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # QAS 1 — Warehouse Failure

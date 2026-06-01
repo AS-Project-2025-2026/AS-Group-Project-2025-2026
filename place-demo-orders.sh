@@ -20,6 +20,12 @@ COMPOSE="docker compose -f /home/alof/Desktop/AS/AS-Group-Project-2025-2026/dock
 SQL() { $COMPOSE exec nopcommerce_database \
   /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "nopCommerce_db_password" -d NopCommerce -Q "$1" 2>/dev/null; }
 
+reset_inventory_stub() {
+  info "Resetting inventory stub runtime state..."
+  INVENTORY_STUB_MODE=normal $COMPOSE up -d --force-recreate --no-deps inventory_stub > /dev/null
+  ok "Inventory stub reset to normal"
+}
+
 echo ""
 echo "========================================"
 echo "  VerdeMart — Populate Demo Data ($MODE)"
@@ -36,8 +42,21 @@ info "Found $ORDER_COUNT orders in DB"
 
 # ── 1. clear previous demo data (only for DB-population modes) ───────────────
 if [[ "$MODE" == "healthy" || "$MODE" == "degraded" ]]; then
+  reset_inventory_stub
   info "Clearing previous integration demo data..."
-  SQL "DELETE FROM OutboxRecord; DELETE FROM DeadLetterRecord; DELETE FROM CircuitBreakerStateRecord;" > /dev/null
+  SQL "
+  DELETE FROM OutboxRecord;
+  DELETE FROM DeadLetterRecord;
+  DELETE FROM CircuitBreakerStateRecord;
+  DELETE FROM InventoryProjectionRecord WHERE SourceSystem = 'pos';
+  UPDATE InventoryProjectionRecord
+     SET IsStale = 0,
+         ConflictFlag = 0,
+         PendingReconciliation = 0,
+         LastConfirmedUtc = GETUTCDATE(),
+         ResolvedAtUtc = GETUTCDATE(),
+         UpdatedAtUtc = GETUTCDATE();
+  " > /dev/null
   ok "Cleared"
 fi
 

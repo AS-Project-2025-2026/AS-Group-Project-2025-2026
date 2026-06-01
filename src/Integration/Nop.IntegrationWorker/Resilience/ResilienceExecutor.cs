@@ -60,6 +60,7 @@ public sealed class ResilienceExecutor
                     "Circuit breaker HALF-OPEN probe. Adapter={Adapter} CorrelationId={CorrelationId} CircuitState={CircuitState}",
                     adapter, correlationId, circuit.State);
 
+            var wasHalfOpenProbe = circuit.State == CircuitState.HalfOpen;
             var stopwatch = Stopwatch.StartNew();
             try
             {
@@ -73,7 +74,7 @@ public sealed class ResilienceExecutor
 
                 circuit.RecordSuccess();
 
-                if (attempt > 0)
+                if (wasHalfOpenProbe || attempt > 0)
                     _logger.LogInformation(
                         "Circuit breaker CLOSED/recovered. Adapter={Adapter} CorrelationId={CorrelationId} CircuitState={CircuitState}",
                         adapter, correlationId, circuit.State);
