@@ -61,6 +61,18 @@ make logs
 Shows outbox records, dead letters, circuit breaker state, and inventory
 projection in real time.
 
+### 6. Open observability dashboards
+
+| Tool | URL | Credentials |
+|---|---|---|
+| Grafana | [http://localhost:3000](http://localhost:3000) | admin / admin |
+| Prometheus | [http://localhost:9090](http://localhost:9090) | — |
+| Loki | internal Compose service (`loki:3100`) | — |
+
+Grafana is provisioned with the VerdeMart architectural-drivers dashboard. See
+[`docs/observability-plan.md`](docs/observability-plan.md) for the metrics and
+demo workflow.
+
 ---
 
 ### Demo scenarios
@@ -87,6 +99,8 @@ See `docs/evidence/demo-script.md` for the full step-by-step demo guide and
 | nopCommerce storefront | http://localhost:8080 | — |
 | Admin / Operations View | http://localhost:8080/Admin/Operations/List | admin@verdemart.com / Admin1234! |
 | RabbitMQ management | http://localhost:15672 | guest / guest |
+| Grafana | http://localhost:3000 | admin / admin |
+| Prometheus | http://localhost:9090 | — |
 | Warehouse stub | http://localhost:5081/health | — |
 | Shipping stub | http://localhost:5082/health | — |
 | Inventory stub | http://localhost:5083/health | — |
@@ -168,3 +182,11 @@ The `docs` folder is the main place for project documentation:
 - Architecture diagrams are stored under `docs/report/diagrams/`.
 - Rendered or supporting images are stored under `docs/report/images/`.
 - The compiled report is available at `docs/report/report.pdf`.
+- Standalone ADRs are stored under [`docs/adr/`](docs/adr/), including a
+  cross-decision [forces matrix](docs/adr/forces-matrix.md).
+- Runtime evidence is stored under [`docs/evidence/`](docs/evidence/), including
+  screenshots, logs, capture guides, and known limitations.
+- The chosen architecture framework and how it was applied is summarized in
+  [`docs/architecture-framework.md`](docs/architecture-framework.md).
+- Observability notes are stored in
+  [`docs/observability-plan.md`](docs/observability-plan.md).

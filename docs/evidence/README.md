@@ -2,6 +2,10 @@
 
 This folder collects runtime evidence for the final delivery.
 
+Related architecture decisions are documented as standalone ADRs in
+[`../adr/`](../adr/), with a cross-decision forces matrix in
+[`../adr/forces-matrix.md`](../adr/forces-matrix.md).
+
 ## Folder structure
 
 ```
