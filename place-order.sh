@@ -13,8 +13,9 @@ set -euo pipefail
 BASE_URL="${BASE_URL:-http://localhost:8080}"
 BASE_URL="${BASE_URL%/}"
 COUNT="${1:-1}"
-PRODUCT_ID="${2:-1}"    # nopCommerce sample data product ID
+PRODUCT_ID="${2:-2}"    # product 2 = Digital Storm VANQUISH (no required attributes)
 QUANTITY="${3:-1}"
+ORDER_PAUSE_SECONDS="${ORDER_PAUSE_SECONDS:-65}"
 
 EMAIL="${DEMO_EMAIL:-admin@verdemart.com}"
 PASSWORD="${DEMO_PASSWORD:-Admin1234!}"
@@ -48,6 +49,47 @@ curl_post() {
     curl -sS --max-time 15 -L \
         -b "$COOKIES" -c "$COOKIES" \
         -X POST "$@"
+}
+
+save_checkout_attributes() {
+    local cart_page="$WORK_DIR/cart-after-add.html"
+    curl_get "$BASE_URL/cart" -o "$cart_page" > /dev/null
+
+    local token
+    token="$(get_token "$cart_page")"
+    if [[ -z "$token" ]]; then
+        fail "Could not extract CSRF token from cart page"
+        exit 1
+    fi
+
+    local attribute_name
+    attribute_name="$(grep -oP 'name="checkout_attribute_\d+"' "$cart_page" | head -1 | cut -d'"' -f2 || true)"
+    if [[ -z "$attribute_name" ]]; then
+        return 0
+    fi
+
+    local attribute_value
+    attribute_value="$(grep -A10 "name=\"$attribute_name\"" "$cart_page" \
+        | grep -oP '<option selected="selected" value="\K[^"]+' \
+        | head -1 || true)"
+    if [[ -z "$attribute_value" ]]; then
+        attribute_value="$(grep -A10 "name=\"$attribute_name\"" "$cart_page" \
+            | grep -oP '<option value="\K[^"]+' \
+            | head -1 || true)"
+    fi
+
+    if [[ -z "$attribute_value" ]]; then
+        fail "Could not determine checkout attribute value for $attribute_name"
+        exit 1
+    fi
+
+    info "  Saving checkout attributes ..."
+    curl_post "$BASE_URL/shoppingcart/checkoutattributechange/%7BisEditable%7D?isEditable=True" \
+        -H "X-Requested-With: XMLHttpRequest" \
+        -H "Content-Type: application/x-www-form-urlencoded" \
+        -d "__RequestVerificationToken=$token" \
+        -d "$attribute_name=$attribute_value" \
+        -o "$WORK_DIR/checkout-attributes.json" > /dev/null
 }
 
 # ── step 1: login ─────────────────────────────────────────────────────────────
@@ -102,15 +144,24 @@ add_to_cart() {
 
     # Clear cart first to avoid leftover items from previous runs
     curl_get "$BASE_URL/cart" -o "$WORK_DIR/cart.html" > /dev/null
+    local token
+    token="$(get_token "$WORK_DIR/cart.html")"
+
+    if [[ -z "$token" ]]; then
+        fail "Could not extract CSRF token from cart page"
+        exit 1
+    fi
 
     local result
     result="$(curl_post "$BASE_URL/addproducttocart/catalog/$product_id/1/$quantity" \
         -H "X-Requested-With: XMLHttpRequest" \
         -H "Content-Type: application/x-www-form-urlencoded" \
+        -d "__RequestVerificationToken=$token" \
         -w "%{http_code}" -o "$WORK_DIR/add-cart-result.json")"
 
     if grep -q '"success":true' "$WORK_DIR/add-cart-result.json" 2>/dev/null; then
         ok "Product added to cart"
+        save_checkout_attributes
         return 0
     fi
 
@@ -121,11 +172,13 @@ add_to_cart() {
     result="$(curl_post "$BASE_URL/addproducttocart/details/$product_id/1" \
         -H "X-Requested-With: XMLHttpRequest" \
         -H "Content-Type: application/x-www-form-urlencoded" \
+        -d "__RequestVerificationToken=$token" \
         -d "addtocart_$product_id.EnteredQuantity=$quantity" \
         -w "%{http_code}" -o "$WORK_DIR/add-cart-result2.json")"
 
     if grep -q '"success":true' "$WORK_DIR/add-cart-result2.json" 2>/dev/null; then
         ok "Product added to cart (details endpoint)"
+        save_checkout_attributes
         return 0
     fi
 
@@ -213,6 +266,14 @@ do_checkout() {
         -d "UseRewardPoints=false" \
         -o "$WORK_DIR/payment.json" 2>/dev/null || true
 
+    # Check/Money Order has no fields, but nopCommerce still expects the
+    # payment-info step to store a ProcessPaymentRequest before confirmation.
+    info "  Saving payment information ..."
+    curl_post "$BASE_URL/checkout/OpcSavePaymentInfo/" \
+        -H "X-Requested-With: XMLHttpRequest" \
+        -H "Content-Type: application/x-www-form-urlencoded" \
+        -o "$WORK_DIR/payment-info.json" 2>/dev/null || true
+
     # ── confirm order ─────────────────────────────────────────────────────────
     info "  Confirming order ..."
     local confirm_result="$WORK_DIR/confirm.json"
@@ -225,6 +286,7 @@ do_checkout() {
 
     # check for success — either redirect to order details or success JSON
     if grep -q '"redirect"' "$confirm_result" 2>/dev/null || \
+       grep -q '"success":1' "$confirm_result" 2>/dev/null || \
        grep -q 'orderdetails\|order/details\|completed' "$confirm_result" 2>/dev/null; then
         local order_url
         order_url="$(grep -oP '"redirect":"\K[^"]+' "$confirm_result" 2>/dev/null | head -1 || true)"
@@ -236,7 +298,32 @@ do_checkout() {
 
     fail "Order confirmation failed"
     cat "$confirm_result" >&2
+    if grep -q 'Please wait several seconds\|MinOrderPlacementInterval' "$confirm_result" 2>/dev/null; then
+        return 2
+    fi
     return 1
+}
+
+place_one_order() {
+    local product_id="$1"
+    local quantity="$2"
+
+    add_to_cart "$product_id" "$quantity"
+
+    local checkout_status
+    set +e
+    do_checkout
+    checkout_status=$?
+    set -e
+
+    if [[ "$checkout_status" -eq 2 ]]; then
+        info "Waiting ${ORDER_PAUSE_SECONDS}s for nopCommerce order throttle ..."
+        sleep "$ORDER_PAUSE_SECONDS"
+        do_checkout
+        return $?
+    fi
+
+    return "$checkout_status"
 }
 
 # ── main ──────────────────────────────────────────────────────────────────────
@@ -256,9 +343,14 @@ SUCCESS=0
 FAIL=0
 
 for i in $(seq 1 "$COUNT"); do
+    if [[ "$i" -gt 1 ]]; then
+        info "Waiting ${ORDER_PAUSE_SECONDS}s for nopCommerce order throttle ..."
+        sleep "$ORDER_PAUSE_SECONDS"
+    fi
+
     echo ""
     echo "── Order $i / $COUNT ──────────────────────────"
-    if add_to_cart "$PRODUCT_ID" "$QUANTITY" && do_checkout; then
+    if place_one_order "$PRODUCT_ID" "$QUANTITY"; then
         SUCCESS=$((SUCCESS + 1))
     else
         FAIL=$((FAIL + 1))
@@ -277,3 +369,7 @@ echo ""
 echo "  Operations View → $BASE_URL/Admin/Operations/List"
 echo "  Worker logs     → make logs"
 echo ""
+
+if [[ $FAIL -gt 0 ]]; then
+    exit 1
+fi

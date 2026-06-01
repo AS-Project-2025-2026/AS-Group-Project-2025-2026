@@ -81,7 +81,7 @@ help: ## Show this help
 
 up: ## Build and start all containers with accelerated demo parameters
 	@echo "$(YELLOW)[...]$(NC)  Writing .env with accelerated demo parameters..."
-	@if [ ! -f .env ]; then \
+	@if [ ! -s .env ]; then \
 		printf '%s\n' \
 			'RESILIENCE__INITIALDELAYSECONDS=2' \
 			'RESILIENCE__MAXDELAYSECONDS=30' \
@@ -161,7 +161,7 @@ status: ## Show health status of all services
 		&& echo "$(GREEN)up$(NC)" || echo "$(RED)down$(NC)"
 	@printf "  %-24s" "integration_worker"; \
 		$(COMPOSE) ps integration_worker --format json 2>/dev/null \
-		| python3 -c "import sys,json; rows=json.load(sys.stdin); st=rows[0].get('State','?') if rows else '?'; print('\033[0;32m' + st + '\033[0m' if st=='running' else '\033[0;31m' + st + '\033[0m')" 2>/dev/null \
+		| python3 -c "import sys,json; raw=sys.stdin.read().strip(); rows=[] if not raw else (json.loads(raw) if raw.startswith('[') else [json.loads(line) for line in raw.splitlines() if line.strip()]); st=(rows[0] if isinstance(rows, list) and rows else rows).get('State','?') if rows else '?'; print('\033[0;32m' + st + '\033[0m' if st=='running' else '\033[0;31m' + st + '\033[0m')" 2>/dev/null \
 		|| echo "$(RED)unknown$(NC)"
 	@echo ""
 
@@ -170,17 +170,17 @@ status: ## Show health status of all services
 # ─────────────────────────────────────────────────────────────────────────────
 
 order: ## Place 1 real order through the checkout (triggers outbox + worker)
-	@./place-order.sh 1
+	@./place-order.sh 1 2
 
 order-burst: ## Place 5 orders in sequence (shows outbox filling up)
-	@./place-order.sh 5
+	@./place-order.sh 5 2
 
-order-loop: ## Keep placing 1 order every 20s until Ctrl+C (run in a separate terminal)
-	@echo "$(YELLOW)[...]$(NC)  Placing orders every 20s — Ctrl+C to stop"
+order-loop: ## Keep placing 1 order every 65s until Ctrl+C (run in a separate terminal)
+	@echo "$(YELLOW)[...]$(NC)  Placing orders every 65s — Ctrl+C to stop"
 	@while true; do \
-		./place-order.sh 1 || echo "$(YELLOW)[WARN]$(NC) order failed, retrying next cycle"; \
-		echo "$(YELLOW)[...]$(NC)  Next order in 20s..."; \
-		sleep 20; \
+		./place-order.sh 1 2 || echo "$(YELLOW)[WARN]$(NC) order failed, retrying next cycle"; \
+		echo "$(YELLOW)[...]$(NC)  Next order in 65s..."; \
+		sleep 65; \
 	done
 
 # ─────────────────────────────────────────────────────────────────────────────
