@@ -51,6 +51,31 @@ curl_post() {
         -X POST "$@"
 }
 
+reset_demo_checkout_state() {
+    if ! command -v docker >/dev/null 2>&1 || ! docker compose ps -q nopcommerce_database >/dev/null 2>&1; then
+        return 0
+    fi
+
+    local escaped_email="${EMAIL//\'/\'\'}"
+
+    info "  Resetting demo checkout state ..."
+    docker compose exec -T nopcommerce_database \
+        /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa \
+        -P "nopCommerce_db_password" -d NopCommerce \
+        -Q "SET NOCOUNT ON;
+            DECLARE @CustomerId int;
+            SELECT @CustomerId = Id FROM Customer WHERE Email = N'$escaped_email';
+            IF @CustomerId IS NOT NULL
+            BEGIN
+                DELETE FROM ShoppingCartItem
+                WHERE CustomerId = @CustomerId AND ShoppingCartTypeId = 1;
+
+                DELETE FROM GenericAttribute
+                WHERE EntityId = @CustomerId
+                  AND [Key] IN ('ProcessPaymentRequest', 'SelectedPaymentMethod', 'CheckoutAttributes');
+            END" >/dev/null 2>&1 || true
+}
+
 save_checkout_attributes() {
     local cart_page="$WORK_DIR/cart-after-add.html"
     curl_get "$BASE_URL/cart" -o "$cart_page" > /dev/null
@@ -142,7 +167,8 @@ add_to_cart() {
     local quantity="$2"
     info "Adding product $product_id (qty=$quantity) to cart ..."
 
-    # Clear cart first to avoid leftover items from previous runs
+    reset_demo_checkout_state
+
     curl_get "$BASE_URL/cart" -o "$WORK_DIR/cart.html" > /dev/null
     local token
     token="$(get_token "$WORK_DIR/cart.html")"

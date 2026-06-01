@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Nop.IntegrationWorker.Clients;
 using Nop.IntegrationWorker.Data;
 using Nop.IntegrationWorker.Messaging;
+using Nop.IntegrationWorker.Metrics;
 using Nop.IntegrationWorker.Models;
 using Nop.IntegrationWorker.Options;
 using Nop.IntegrationWorker.Resilience;
@@ -74,12 +75,14 @@ public class CustomerSupportConsumerService : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Cannot deserialise customer support message — discarding");
+            WorkerMetrics.ObserveWorkerMessage(AdapterName, "discarded");
             await channel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: false, cancellationToken: ct);
             return;
         }
 
         if (payload is null)
         {
+            WorkerMetrics.ObserveWorkerMessage(AdapterName, "discarded");
             await channel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: false, cancellationToken: ct);
             return;
         }
@@ -89,6 +92,7 @@ public class CustomerSupportConsumerService : BackgroundService
         if (existing is not null)
         {
             _logger.LogInformation("CustomerSupport already processed (key={Key}) — acking", idempotencyKey);
+            WorkerMetrics.ObserveWorkerMessage(AdapterName, "idempotent");
             await channel.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: ct);
             return;
         }
@@ -115,6 +119,8 @@ public class CustomerSupportConsumerService : BackgroundService
 
         if (!success)
         {
+            WorkerMetrics.ObserveDeadLetter(AdapterName);
+            WorkerMetrics.ObserveWorkerMessage(AdapterName, "dead_letter");
             _logger.LogWarning(
                 "Dead-letter created. Adapter={Adapter} CorrelationId={CorrelationId} IdempotencyKey={IdempotencyKey} OrderId={OrderId} FailureReason={FailureReason}",
                 AdapterName, payload.CorrelationId, payload.IdempotencyKey, payload.OrderId, lastError);
@@ -146,6 +152,7 @@ public class CustomerSupportConsumerService : BackgroundService
             "Message published. Adapter={Adapter} CorrelationId={CorrelationId} OrderId={OrderId} TicketId={TicketId} RetryAttempt={Attempts}",
             AdapterName, payload.CorrelationId, payload.OrderId, ticketId, attempts);
 
+        WorkerMetrics.ObserveWorkerMessage(AdapterName, "processed");
         await channel.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: ct);
     }
 }

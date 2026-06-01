@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Nop.IntegrationWorker.Data;
 using Nop.IntegrationWorker.Messaging;
+using Nop.IntegrationWorker.Metrics;
 using Nop.IntegrationWorker.Options;
 using Nop.IntegrationWorker.Resilience;
 
@@ -115,6 +116,7 @@ public class OutboxPollingService : BackgroundService
         if (success)
         {
             await _data.MarkOutboxPublishedAsync(record.Id);
+            WorkerMetrics.ObserveWorkerMessage(AdapterName, "published");
             _logger.LogInformation(
                 "Message published. Adapter={Adapter} CorrelationId={CorrelationId} OutboxRecordId={OutboxRecordId} OrderId={OrderId} RoutingKey={RoutingKey}",
                 AdapterName, record.CorrelationId, record.Id, record.OrderId, routingKey);
@@ -122,6 +124,8 @@ public class OutboxPollingService : BackgroundService
         else
         {
             await _data.MarkOutboxFailedAsync(record.Id, lastError ?? "exhausted retries");
+            WorkerMetrics.ObserveDeadLetter(AdapterName);
+            WorkerMetrics.ObserveWorkerMessage(AdapterName, "dead_letter");
 
             _logger.LogWarning(
                 "Dead-letter created. Adapter={Adapter} CorrelationId={CorrelationId} IdempotencyKey={IdempotencyKey} OutboxRecordId={OutboxRecordId} OrderId={OrderId} FailureReason={FailureReason}",

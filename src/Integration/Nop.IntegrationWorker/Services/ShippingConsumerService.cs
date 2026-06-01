@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Nop.IntegrationWorker.Clients;
 using Nop.IntegrationWorker.Data;
 using Nop.IntegrationWorker.Messaging;
+using Nop.IntegrationWorker.Metrics;
 using Nop.IntegrationWorker.Models;
 using Nop.IntegrationWorker.Options;
 using Nop.IntegrationWorker.Resilience;
@@ -75,12 +76,14 @@ public class ShippingConsumerService : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Cannot deserialise shipping message — discarding");
+            WorkerMetrics.ObserveWorkerMessage(AdapterName, "discarded");
             await channel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: false, cancellationToken: ct);
             return;
         }
 
         if (payload is null)
         {
+            WorkerMetrics.ObserveWorkerMessage(AdapterName, "discarded");
             await channel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: false, cancellationToken: ct);
             return;
         }
@@ -90,6 +93,7 @@ public class ShippingConsumerService : BackgroundService
         if (existing is not null)
         {
             _logger.LogInformation("Shipping already processed (key={Key}) — acking", shippingKey);
+            WorkerMetrics.ObserveWorkerMessage(AdapterName, "idempotent");
             await channel.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: ct);
             return;
         }
@@ -116,6 +120,8 @@ public class ShippingConsumerService : BackgroundService
 
         if (!success)
         {
+            WorkerMetrics.ObserveDeadLetter(AdapterName);
+            WorkerMetrics.ObserveWorkerMessage(AdapterName, "dead_letter");
             _logger.LogWarning(
                 "Dead-letter created. Adapter={Adapter} CorrelationId={CorrelationId} IdempotencyKey={IdempotencyKey} OrderId={OrderId} FailureReason={FailureReason}",
                 AdapterName, payload.CorrelationId, payload.IdempotencyKey, payload.OrderId, lastError);
@@ -147,6 +153,7 @@ public class ShippingConsumerService : BackgroundService
             "Message published. Adapter={Adapter} CorrelationId={CorrelationId} OrderId={OrderId} TrackingNumber={TrackingNumber} RetryAttempt={Attempts}",
             AdapterName, payload.CorrelationId, payload.OrderId, trackingNumber, attempts);
 
+        WorkerMetrics.ObserveWorkerMessage(AdapterName, "processed");
         await channel.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: ct);
     }
 }

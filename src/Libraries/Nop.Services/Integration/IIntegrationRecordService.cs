@@ -22,4 +22,6 @@ public partial interface IIntegrationRecordService
     Task InsertIdempotencyRecordAsync(IdempotencyRecord record);
 
     Task<IList<InventoryProjectionRecord>> GetStaleOrConflictedProjectionsAsync();
+
+    Task<IntegrationMetricsSnapshot> GetIntegrationMetricsSnapshotAsync();
 }

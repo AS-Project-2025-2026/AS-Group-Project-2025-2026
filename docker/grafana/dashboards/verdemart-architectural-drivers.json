@@ -1,0 +1,464 @@
+{
+  "annotations": { "list": [] },
+  "description": "VerdeMart omnichannel integration layer — real-time observability across availability, resilience, latency, consistency and operability. Data sourced from the Integration Worker Prometheus endpoint (port 9100). Refresh every 10s.",
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "icon": "external link",
+      "targetBlank": true,
+      "title": "Operations View",
+      "tooltip": "Open nopCommerce Operations View",
+      "type": "link",
+      "url": "http://localhost:8080/Admin/Operations/List"
+    }
+  ],
+  "panels": [
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "Live Counters — current integration health at a glance",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "description": "Number of adapter calls that resulted in a failure, error or timeout in the last 5 minutes. Green = zero failures. Yellow = isolated issue. Red = sustained failure — investigate circuit breaker state.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 1 },
+            { "color": "red", "value": 5 }
+          ]},
+          "mappings": [],
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "id": 10,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+      "pluginVersion": "11.3.0",
+      "targets": [{ "expr": "increase(verdemart_adapter_calls_total{outcome=~\"failure|error|timeout\"}[5m])", "legendFormat": "Failures 5m", "refId": "A" }],
+      "title": "Adapter Failures (5m)",
+      "type": "stat"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "description": "Retry attempts scheduled by the exponential backoff policy in the last 5 minutes, across all adapters. A non-zero value indicates at least one adapter is degraded. Check the Resilience row for per-adapter breakdown.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 1 },
+            { "color": "red", "value": 3 }
+          ]},
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "id": 11,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+      "pluginVersion": "11.3.0",
+      "targets": [{ "expr": "increase(verdemart_adapter_retries_total[5m])", "legendFormat": "Retries 5m", "refId": "A" }],
+      "title": "Retry Attempts (5m)",
+      "type": "stat"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "description": "Dead-letter records created in the last 5 minutes. A dead letter means a message exhausted all retry attempts and requires operator action via the Operations View requeue button. Any non-zero value is an alert.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "red", "value": 1 }
+          ]},
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "id": 12,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+      "pluginVersion": "11.3.0",
+      "targets": [{ "expr": "increase(verdemart_dead_letters_created_total[5m])", "legendFormat": "Dead Letters 5m", "refId": "A" }],
+      "title": "Dead Letters Created (5m)",
+      "type": "stat"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "description": "Number of InventoryProjectionRecord rows marked IsStale=true in the most recent staleness check cycle. Staleness means the inventory stub did not return an update within the configured threshold (120s default, 30s in demo). Relates to QAS 2.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 1 },
+            { "color": "red", "value": 3 }
+          ]},
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "id": 13,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+      "pluginVersion": "11.3.0",
+      "targets": [{ "expr": "verdemart_inventory_stale_marked_last", "legendFormat": "Stale", "refId": "A" }],
+      "title": "Inventory Stale (last cycle)",
+      "type": "stat"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "description": "Number of products returned by the inventory stub in the most recent sync cycle. Should be 5 under normal operation (products 1–5). Zero means the inventory stub is unavailable or returned no data — stock quantities are not being updated.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": null },
+            { "color": "yellow", "value": 1 },
+            { "color": "green", "value": 5 }
+          ]},
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "id": 14,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+      "pluginVersion": "11.3.0",
+      "targets": [{ "expr": "verdemart_inventory_sync_products_last", "legendFormat": "Products", "refId": "A" }],
+      "title": "Products Synced (last cycle)",
+      "type": "stat"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "description": "Rate of messages processed by the Integration Worker across all adapters in the last 5 minutes (messages per second). Red when zero — indicates the worker is idle or not receiving messages from RabbitMQ.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": null },
+            { "color": "green", "value": 0.5 }
+          ]},
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "id": 15,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+      "pluginVersion": "11.3.0",
+      "targets": [{ "expr": "rate(verdemart_worker_messages_processed_total[5m])", "legendFormat": "msg/s", "refId": "A" }],
+      "title": "Worker Throughput (msg/s)",
+      "type": "stat"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "Resilience — Adapter Calls and Retries (QAS 3, QAS 4)",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "description": "Per-adapter call rate split by outcome (success vs failure/timeout/circuit_open) over a 2-minute rolling window. A divergence between success and failure lines indicates an ongoing adapter outage. circuit_open means the circuit breaker is skipping calls entirely — no further load is sent to the degraded adapter.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never", "spanNulls": false }
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 20,
+      "options": { "legend": { "calcs": ["lastNotNull", "sum"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "rate(verdemart_adapter_calls_total{outcome=\"success\"}[2m])", "legendFormat": "{{adapter}} success", "refId": "A" },
+        { "expr": "rate(verdemart_adapter_calls_total{outcome=~\"failure|error|timeout|circuit_open\"}[2m])", "legendFormat": "{{adapter}} {{outcome}}", "refId": "B" }
+      ],
+      "title": "Adapter Call Rate by Outcome (2m window)",
+      "type": "timeseries"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "description": "Stacked bar chart showing retry attempts and dead-letter creations per adapter in 2-minute buckets. Retries indicate degraded but recovering adapters. Dead letters (darker bars) indicate messages that exhausted all retries and require operator requeue via the Operations View.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1, "showPoints": "never", "stacking": { "group": "A", "mode": "normal" } }
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 21,
+      "options": { "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "increase(verdemart_adapter_retries_total[2m])", "legendFormat": "{{adapter}} retries", "refId": "A" },
+        { "expr": "increase(verdemart_dead_letters_created_total[2m])", "legendFormat": "{{adapter}} dead-letter", "refId": "B" }
+      ],
+      "title": "Retries and Dead Letters per Adapter (2m buckets)",
+      "type": "timeseries"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "id": 102,
+      "title": "Latency — Adapter Call Duration and Inventory Sync Timing (QAS 3)",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "description": "Percentile latency of adapter HTTP calls (warehouse, shipping, inventory, storepos, customersupport) over a 5-minute window. p50 = median call time. p95 and p99 reveal tail latency caused by slow stubs. QAS 3 requires checkout response to be unaffected by these durations — all adapter calls are async and do not block checkout.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "s",
+          "custom": { "drawStyle": "line", "fillOpacity": 8, "lineWidth": 2, "showPoints": "never" }
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "id": 30,
+      "options": { "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, rate(verdemart_adapter_call_duration_seconds_bucket[5m]))", "legendFormat": "p50 {{adapter}}", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, rate(verdemart_adapter_call_duration_seconds_bucket[5m]))", "legendFormat": "p95 {{adapter}}", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, rate(verdemart_adapter_call_duration_seconds_bucket[5m]))", "legendFormat": "p99 {{adapter}}", "refId": "C" }
+      ],
+      "title": "Adapter Latency Percentiles — p50 / p95 / p99 (5m)",
+      "type": "timeseries"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "description": "Duration of each full inventory sync cycle (HTTP call to stub + upsert of all projection records) measured as p50/p95/p99 and average over a 5-minute window. Spikes indicate slow stub responses or database write contention. The avg line rising above 1s in normal operation suggests the stub is in slow mode.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "s",
+          "custom": { "drawStyle": "line", "fillOpacity": 8, "lineWidth": 2, "showPoints": "never" }
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+      "id": 31,
+      "options": { "legend": { "calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, rate(verdemart_inventory_sync_duration_seconds_bucket[5m]))", "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, rate(verdemart_inventory_sync_duration_seconds_bucket[5m]))", "legendFormat": "p95", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, rate(verdemart_inventory_sync_duration_seconds_bucket[5m]))", "legendFormat": "p99", "refId": "C" },
+        { "expr": "rate(verdemart_inventory_sync_duration_seconds_sum[5m]) / rate(verdemart_inventory_sync_duration_seconds_count[5m])", "legendFormat": "avg", "refId": "D" }
+      ],
+      "title": "Inventory Sync Cycle Duration — p50 / p95 / p99 / avg (5m)",
+      "type": "timeseries"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+      "id": 103,
+      "title": "Consistency — Inventory Sync, Staleness and Conflict Detection (QAS 2, QAS 6)",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "description": "Number of products returned by the inventory stub (blue) and actually written to the Product.StockQuantity column (green) in each sync cycle. A gap between the two lines means some products were not updated (e.g. ManageInventoryMethodId != 1). Both lines dropping to zero means the inventory stub is unavailable and no stock updates are occurring — stale inventory will be flagged within the configured threshold.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "short",
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "auto" }
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "id": 40,
+      "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "verdemart_inventory_sync_products_last", "legendFormat": "products returned by stub", "refId": "A" },
+        { "expr": "verdemart_inventory_products_updated_last", "legendFormat": "products written to DB", "refId": "B" }
+      ],
+      "title": "Inventory Sync — Products Returned vs Written per Cycle",
+      "type": "timeseries"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "description": "Staleness events (blue): number of InventoryProjectionRecord rows marked IsStale=true in each cycle because LastConfirmedUtc exceeded the threshold. Conflict resolution events (green): number of POS vs WMS conflicts cleared automatically after both sources agreed within tolerance for 30 minutes. Rising stale count without corresponding resolution means the inventory source is persistently unavailable. Relates to QAS 2 (staleness threshold 30s in demo, 120s in production) and QAS 6 (conflict tolerance 2 units).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "short",
+          "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "showPoints": "auto" }
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "id": 41,
+      "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "verdemart_inventory_stale_marked_last", "legendFormat": "stale projections marked", "refId": "A" },
+        { "expr": "verdemart_inventory_conflicts_resolved_last", "legendFormat": "conflicts auto-resolved", "refId": "B" }
+      ],
+      "title": "Inventory Staleness Events and Conflict Auto-Resolution per Cycle",
+      "type": "timeseries"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
+      "id": 104,
+      "title": "Worker Throughput — Message Processing by Adapter",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "description": "Rate of messages successfully processed by each adapter consumer (fulfillment, shipping, storeops, customersupport) in messages per second over a 2-minute window. All adapters should show a non-zero rate when orders are being placed. A flat line for a specific adapter indicates that queue is empty or the consumer has stopped.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "short",
+          "custom": { "drawStyle": "line", "fillOpacity": 8, "lineWidth": 2, "showPoints": "never", "stacking": { "group": "A", "mode": "none" } }
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 33 },
+      "id": 50,
+      "options": { "legend": { "calcs": ["lastNotNull", "sum"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "rate(verdemart_worker_messages_processed_total[2m])", "legendFormat": "{{adapter}} {{outcome}}", "refId": "A" }
+      ],
+      "title": "Worker Message Processing Rate by Adapter (2m)",
+      "type": "timeseries"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "description": "All adapter HTTP calls broken down by adapter and outcome over a 2-minute window. Shows the full picture including success, failure, timeout and circuit_open outcomes in one view. Use this to compare healthy adapters against degraded ones side by side. The rabbitmq adapter reflects outbox publish calls rather than external HTTP calls.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "short",
+          "custom": { "drawStyle": "line", "fillOpacity": 8, "lineWidth": 2, "showPoints": "never" }
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 33 },
+      "id": 51,
+      "options": { "legend": { "calcs": ["lastNotNull", "sum"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "rate(verdemart_adapter_calls_total[2m])", "legendFormat": "{{adapter}} {{outcome}}", "refId": "A" }
+      ],
+      "title": "All Adapter Calls by Outcome (2m)",
+      "type": "timeseries"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 41 },
+      "id": 105,
+      "title": "Logs — Integration Worker (Loki)",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "description": "All warn and error level logs from the Integration Worker. These correspond to retry attempts, circuit breaker state changes, dead-letter creation, inventory staleness, and inventory conflicts. Use the correlation ID filter above to narrow to a specific order. Each warn line is a recoverable event; each error or fail line indicates an unhandled exception.",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 42 },
+      "id": 60,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "targets": [{
+        "datasource": { "type": "loki", "uid": "Loki" },
+        "editorMode": "code",
+        "expr": "{service=\"integration_worker\"} |= `` | logfmt | level =~ \"warn|fail|crit\"",
+        "legendFormat": "",
+        "queryType": "range",
+        "refId": "A"
+      }],
+      "title": "Worker — Warnings and Errors",
+      "type": "logs"
+    },
+
+    {
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "description": "All Integration Worker logs filtered to a specific correlation ID (e.g. order-5). Shows the full lifecycle of an order through the integration layer: outbox picked up, adapter called, retries scheduled, circuit opened, dead letter created. Change the correlation_id label filter in the query to trace any order.",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 52 },
+      "id": 61,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Ascending",
+        "wrapLogMessage": true
+      },
+      "targets": [{
+        "datasource": { "type": "loki", "uid": "Loki" },
+        "editorMode": "code",
+        "expr": "{service=\"integration_worker\"} |~ \"order-[0-9]+\"",
+        "legendFormat": "",
+        "queryType": "range",
+        "refId": "A"
+      }],
+      "title": "Worker — All Logs Containing an Order Correlation ID",
+      "type": "logs"
+    },
+
+    {
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "description": "Log volume over time per container, split by log level (info, warn, error). A spike in warn or error volume indicates a degradation event. Cross-reference with the metric panels above to correlate log storms with adapter failure rates. All containers in the docker-compose project are included.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1, "stacking": { "group": "A", "mode": "normal" } }
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 62 },
+      "id": 62,
+      "options": {
+        "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "Loki" },
+          "editorMode": "code",
+          "expr": "sum by (service, level) (count_over_time({project=\"as-group-project-2025-2026\"} | logfmt | level != \"\" [$__interval]))",
+          "legendFormat": "{{service}} {{level}}",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Log Volume by Container and Level",
+      "type": "timeseries"
+    }
+
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["verdemart", "integration", "omnichannel"],
+  "time": { "from": "now-30m", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "VerdeMart — Integration Observability",
+  "uid": "verdemart-architectural-drivers",
+  "version": 3
+}

@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Nop.IntegrationWorker.Metrics;
 using Nop.IntegrationWorker.Options;
+using System.Diagnostics;
 
 namespace Nop.IntegrationWorker.Resilience;
 
@@ -46,6 +48,7 @@ public sealed class ResilienceExecutor
             if (!circuit.IsCallAllowed())
             {
                 lastError = $"Circuit breaker OPEN for adapter '{adapter}', next probe at {circuit.NextProbeAtUtc:O}";
+                WorkerMetrics.ObserveCircuitOpenSkip(adapter);
                 _logger.LogWarning(
                     "Circuit breaker OPEN — skipping call. Adapter={Adapter} CorrelationId={CorrelationId} NextProbeAt={NextProbeAt} CircuitState={CircuitState}",
                     adapter, correlationId, circuit.NextProbeAtUtc, circuit.State);
@@ -57,6 +60,7 @@ public sealed class ResilienceExecutor
                     "Circuit breaker HALF-OPEN probe. Adapter={Adapter} CorrelationId={CorrelationId} CircuitState={CircuitState}",
                     adapter, correlationId, circuit.State);
 
+            var stopwatch = Stopwatch.StartNew();
             try
             {
                 _logger.LogInformation(
@@ -64,6 +68,8 @@ public sealed class ResilienceExecutor
                     adapter, correlationId, idempotencyKey, outboxRecordId, attempt);
 
                 await operation(ct);
+                stopwatch.Stop();
+                WorkerMetrics.ObserveAdapterCall(adapter, "success", stopwatch.Elapsed.TotalSeconds);
 
                 circuit.RecordSuccess();
 
@@ -84,6 +90,8 @@ public sealed class ResilienceExecutor
             }
             catch (Exception ex)
             {
+                stopwatch.Stop();
+                WorkerMetrics.ObserveAdapterCall(adapter, "failure", stopwatch.Elapsed.TotalSeconds);
                 lastError = ex.Message;
                 circuit.RecordFailure(ex.Message);
 
@@ -102,6 +110,7 @@ public sealed class ResilienceExecutor
                     break;
 
                 var delay = CalculateDelay(attempt);
+                WorkerMetrics.ObserveRetry(adapter);
                 _logger.LogInformation(
                     "Retry scheduled. Adapter={Adapter} CorrelationId={CorrelationId} RetryAttempt={RetryAttempt} DelaySeconds={DelaySeconds}",
                     adapter, correlationId, attempt, delay.TotalSeconds);

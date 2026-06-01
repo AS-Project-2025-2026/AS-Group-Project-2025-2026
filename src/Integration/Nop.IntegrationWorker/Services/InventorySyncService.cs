@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Nop.IntegrationWorker.Clients;
 using Nop.IntegrationWorker.Data;
+using Nop.IntegrationWorker.Metrics;
 using Nop.IntegrationWorker.Options;
 
 namespace Nop.IntegrationWorker.Services;
@@ -51,14 +52,17 @@ public class InventorySyncService : BackgroundService
 
     private async Task SyncStockAsync(CancellationToken ct)
     {
+        using var timer = WorkerMetrics.TimeInventorySync();
         var items = await _inventory.GetStockAsync(ct);
+
+        var updated = 0;
         if (items.Count == 0)
         {
+            WorkerMetrics.ObserveInventorySync(totalProducts: 0, updatedProducts: 0);
             _logger.LogDebug("Inventory sync returned 0 products — skipping");
             return;
         }
 
-        var updated = 0;
         foreach (var item in items)
         {
             var others = await _data.GetProjectionsByProductAsync(item.ProductId);
@@ -92,12 +96,14 @@ public class InventorySyncService : BackgroundService
             if (rows > 0) updated++;
         }
 
+        WorkerMetrics.ObserveInventorySync(items.Count, updated);
         _logger.LogInformation("Inventory sync complete — {Updated}/{Total} products updated", updated, items.Count);
     }
 
     private async Task MarkStaleAsync()
     {
         var marked = await _data.MarkStaleProjectionsAsync(_opts.StalenessThresholdSeconds);
+        WorkerMetrics.ObserveInventoryStaleMarked(marked);
         if (marked > 0)
             _logger.LogWarning("Inventory staleness: {Count} projection(s) marked IsStale=true (threshold={Threshold}s)",
                 marked, _opts.StalenessThresholdSeconds);
@@ -106,6 +112,7 @@ public class InventorySyncService : BackgroundService
     private async Task ResolveConflictsAsync()
     {
         var resolved = await _data.ResolveConflictsAsync(_opts.ConflictToleranceUnits);
+        WorkerMetrics.ObserveInventoryConflictsResolved(resolved);
         if (resolved > 0)
             _logger.LogInformation("Inventory conflict auto-resolved: {Count} record(s) cleared", resolved);
     }

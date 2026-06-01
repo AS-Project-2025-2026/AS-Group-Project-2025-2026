@@ -167,6 +167,9 @@ services:
       Resilience__MaxRetryAttempts: ${RESILIENCE__MAXRETRYATTEMPTS:-10}
       Resilience__CircuitFailureThreshold: ${RESILIENCE__CIRCUITFAILURETHRESHOLD:-5}
       Resilience__CircuitCooldownSeconds: ${RESILIENCE__CIRCUITCOOLDOWNSECONDS:-300}
+      Metrics__Port: 9100
+    expose:
+      - "9100"
     depends_on:
       nopcommerce_database:
         condition: service_healthy
@@ -184,6 +187,61 @@ services:
         condition: service_healthy
     restart: on-failure
 
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - nopcommerce_web
+      - integration_worker
+    restart: on-failure
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./docker/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+      - loki
+    restart: on-failure
+
+  loki:
+    image: grafana/loki:3.2.0
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./docker/loki/loki.yml:/etc/loki/local-config.yaml:ro
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: on-failure
+
+  promtail:
+    image: grafana/promtail:3.2.0
+    volumes:
+      - ./docker/promtail/promtail.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+    restart: on-failure
+
 volumes:
   nopcommerce_data:
   nopcommerce_app_data:
+  grafana_data:
+
+networks:
+  default:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "true"

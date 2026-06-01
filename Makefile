@@ -23,7 +23,7 @@ NC     := \033[0m
         conflict-inject conflict-clear \
         warehouse-fail warehouse-recover \
         shipping-fail shipping-recover \
-        status db-outbox db-deadletter db-inventory db-cb
+        status observability metrics db-outbox db-deadletter db-inventory db-cb db-metrics
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Default
@@ -39,11 +39,13 @@ help: ## Show this help
 	@printf "  %-28s %s\n" "make reset"          "Full reset — stops and deletes volumes"
 	@printf "  %-28s %s\n" "make logs"           "Follow integration_worker logs"
 	@printf "  %-28s %s\n" "make status"         "Show health of all services"
+	@printf "  %-28s %s\n" "make observability"  "Show Grafana, Prometheus, and scrape targets"
+	@printf "  %-28s %s\n" "make metrics"        "Alias for make observability"
 	@echo ""
 	@echo "  $(CYAN)Real orders (triggers outbox + worker)$(NC)"
 	@printf "  %-28s %s\n" "make order"          "Place 1 real order through checkout"
 	@printf "  %-28s %s\n" "make order-burst"    "Place 5 orders in sequence"
-	@printf "  %-28s %s\n" "make order-loop"     "Place 1 order every 20s until Ctrl+C"
+	@printf "  %-28s %s\n" "make order-loop"     "Place 1 order every 65s until Ctrl+C"
 	@echo ""
 	@echo "  $(CYAN)Demo snapshots (SQL-injected, no checkout)$(NC)"
 	@printf "  %-28s %s\n" "make demo-healthy"   "Populate Operations View — all green"
@@ -66,12 +68,15 @@ help: ## Show this help
 	@printf "  %-28s %s\n" "make shipping-recover" "Restore shipping stub to normal"
 	@echo ""
 	@echo "  $(CYAN)Inspect$(NC)"
+	@printf "  %-28s %s\n" "make observability"  "Show observability endpoints and target health"
 	@printf "  %-28s %s\n" "make db-outbox"      "Show last 10 outbox records"
 	@printf "  %-28s %s\n" "make db-deadletter"  "Show last 10 dead-letter records"
 	@printf "  %-28s %s\n" "make db-inventory"   "Show all inventory projection records"
 	@printf "  %-28s %s\n" "make db-cb"          "Show circuit breaker states"
+	@printf "  %-28s %s\n" "make db-metrics"     "Show architectural-driver metrics"
 	@echo ""
 	@echo "  URLs: web=http://localhost:8080  ops=http://localhost:8080/Admin/Operations/List"
+	@echo "        grafana=http://localhost:3000 (admin/admin)  prometheus=http://localhost:9090"
 	@echo "        rabbitmq=http://localhost:15672 (guest/guest)"
 	@echo ""
 
@@ -113,6 +118,8 @@ up: ## Build and start all containers with accelerated demo parameters
 	@echo "$(GREEN)[OK]$(NC)    Environment is up"
 	@echo "       Web          →  http://localhost:8080"
 	@echo "       Operations   →  http://localhost:8080/Admin/Operations/List"
+	@echo "       Grafana      →  http://localhost:3000  (admin/admin)"
+	@echo "       Prometheus   →  http://localhost:9090"
 	@echo "       RabbitMQ     →  http://localhost:15672  (guest/guest)"
 	@echo ""
 
@@ -163,7 +170,36 @@ status: ## Show health status of all services
 		$(COMPOSE) ps integration_worker --format json 2>/dev/null \
 		| python3 -c "import sys,json; raw=sys.stdin.read().strip(); rows=[] if not raw else (json.loads(raw) if raw.startswith('[') else [json.loads(line) for line in raw.splitlines() if line.strip()]); st=(rows[0] if isinstance(rows, list) and rows else rows).get('State','?') if rows else '?'; print('\033[0;32m' + st + '\033[0m' if st=='running' else '\033[0;31m' + st + '\033[0m')" 2>/dev/null \
 		|| echo "$(RED)unknown$(NC)"
+	@printf "  %-24s" "prometheus"; \
+		curl -sf --max-time 2 http://localhost:9090/-/ready > /dev/null 2>&1 \
+		&& echo "$(GREEN)up$(NC)" || echo "$(RED)down$(NC)"
+	@printf "  %-24s" "grafana"; \
+		curl -sf --max-time 2 http://localhost:3000/api/health > /dev/null 2>&1 \
+		&& echo "$(GREEN)up$(NC)" || echo "$(RED)down$(NC)"
 	@echo ""
+
+observability: ## Show Grafana, Prometheus, and scrape target health
+	@echo ""
+	@echo "$(BOLD)  Observability$(NC)"
+	@echo ""
+	@echo "  Grafana dashboard  http://localhost:3000/d/verdemart-architectural-drivers/verdemart-architectural-drivers  (admin/admin)"
+	@echo "  Prometheus         http://localhost:9090"
+	@echo "  Web metrics        http://localhost:8080/metrics"
+	@echo ""
+	@printf "  %-24s" "prometheus"; \
+		curl -sf --max-time 2 http://localhost:9090/-/ready > /dev/null 2>&1 \
+		&& echo "$(GREEN)ready$(NC)" || echo "$(RED)down$(NC)"
+	@printf "  %-24s" "grafana"; \
+		curl -sf --max-time 2 http://localhost:3000/api/health > /dev/null 2>&1 \
+		&& curl -s --max-time 2 http://localhost:3000/api/health | python3 -c "import sys,json; d=json.load(sys.stdin); print('\033[0;32m' + d.get('database','ok') + '\033[0m')" 2>/dev/null \
+		|| echo "$(RED)down$(NC)"
+	@echo ""
+	@curl -sf --max-time 5 http://localhost:9090/api/v1/targets \
+		| python3 -c "import sys,json; d=json.load(sys.stdin); rows=d.get('data',{}).get('activeTargets',[]); print('  Scrape targets'); [print('  %-24s %s%s\033[0m  %s' % (r.get('labels',{}).get('job','?'), '\033[0;32m' if r.get('health')=='up' else '\033[0;31m', r.get('health','?'), r.get('scrapeUrl',''))) for r in rows]" \
+		|| echo "  $(RED)Could not read Prometheus targets$(NC)"
+	@echo ""
+
+metrics: observability ## Alias for observability
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Real orders
@@ -312,3 +348,25 @@ db-cb: ## Show circuit breaker states
 			CONVERT(VARCHAR(19), NextProbeAtUtc, 120) AS NextProbe, \
 			LEFT(ISNULL(LastError,'—'), 50) AS LastError \
 		 FROM CircuitBreakerStateRecord ORDER BY Adapter;"
+
+db-metrics: ## Show architectural-driver metrics
+	@$(SQL_CMD) -Q "\
+		SET NOCOUNT ON; \
+		SELECT 'Availability' AS Driver, \
+			(SELECT COUNT(*) FROM OutboxRecord WHERE Status IN ('Pending','Retrying')) AS Backlog, \
+			(SELECT COUNT(*) FROM OutboxRecord WHERE Status = 'Failed') AS Failed, \
+			(SELECT COUNT(*) FROM OutboxRecord WHERE Status = 'Published' AND PublishedAtUtc >= DATEADD(hour, -24, GETUTCDATE())) AS Published24h, \
+			(SELECT CAST(AVG(CAST(DATEDIFF(second, CreatedAtUtc, PublishedAtUtc) AS decimal(18,1))) AS decimal(18,1)) FROM OutboxRecord WHERE PublishedAtUtc IS NOT NULL AND CreatedAtUtc >= DATEADD(hour, -24, GETUTCDATE())) AS AvgLatencySeconds; \
+		SELECT 'Resilience' AS Driver, \
+			(SELECT COUNT(*) FROM CircuitBreakerStateRecord WHERE State = 'Open') AS OpenCircuits, \
+			(SELECT COUNT(*) FROM CircuitBreakerStateRecord WHERE State = 'HalfOpen') AS HalfOpenCircuits, \
+			(SELECT COALESCE(SUM(FailureCount), 0) FROM CircuitBreakerStateRecord) AS AdapterFailures, \
+			(SELECT COUNT(*) FROM OutboxRecord WHERE Status = 'Retrying') AS Retrying; \
+		SELECT 'Consistency' AS Driver, \
+			(SELECT COUNT(*) FROM InventoryProjectionRecord WHERE ConflictFlag = 1) AS Conflicts, \
+			(SELECT COUNT(*) FROM InventoryProjectionRecord WHERE IsStale = 1) AS Stale, \
+			(SELECT COUNT(*) FROM InventoryProjectionRecord WHERE PendingReconciliation = 1) AS PendingReconciliation; \
+		SELECT 'Operability' AS Driver, \
+			(SELECT COUNT(*) FROM DeadLetterRecord WHERE EscalationState = 'New') AS NewDeadLetters, \
+			(SELECT COUNT(*) FROM DeadLetterRecord WHERE EscalationState = 'Requeued' AND ResolvedAtUtc >= DATEADD(hour, -24, GETUTCDATE())) AS Requeued24h, \
+			(SELECT CAST(MAX(CAST(DATEDIFF(minute, CreatedAtUtc, GETUTCDATE()) AS decimal(18,1))) AS decimal(18,1)) FROM DeadLetterRecord WHERE EscalationState = 'New') AS OldestNewMinutes;"

@@ -25,6 +25,51 @@
     .icon-deadletter { background: #fee2e2; color: #b91c1c; }
     .icon-circuit    { background: #fef3c7; color: #b45309; }
     .icon-inventory  { background: #d1fae5; color: #065f46; }
+    .icon-metrics    { background: #e0f2fe; color: #0369a1; }
+    .driver-metrics {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(180px, 1fr));
+        gap: .75rem;
+    }
+    .driver-metric {
+        border: 1.5px solid #e2e8f0;
+        border-left-width: 5px;
+        border-radius: 6px;
+        padding: .8rem .9rem;
+        background: #fff;
+        min-height: 128px;
+    }
+    .driver-metric.healthy { border-left-color: #10b981; }
+    .driver-metric.watch { border-left-color: #f59e0b; }
+    .driver-metric.degraded { border-left-color: #ef4444; }
+    .driver-title {
+        display: flex;
+        justify-content: space-between;
+        gap: .5rem;
+        font-size: .78rem;
+        font-weight: 800;
+        color: #334155;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+    .driver-value {
+        margin-top: .5rem;
+        font-size: 1.55rem;
+        font-weight: 800;
+        color: #111827;
+        line-height: 1.1;
+    }
+    .driver-secondary {
+        margin-top: .45rem;
+        color: #64748b;
+        font-size: .8rem;
+        line-height: 1.35;
+    }
+    .driver-updated {
+        color: #64748b;
+        font-size: .78rem;
+        font-weight: 600;
+    }
     .section-count {
         font-size: .72rem; font-weight: 700; padding: .2em .55em;
         border-radius: 999px; background: #e2e8f0; color: #4a5568;
@@ -55,6 +100,7 @@
     .badge-stale        { background:#fef3c7; color:#92400e; }
     .badge-conflict     { background:#fee2e2; color:#991b1b; font-weight:800; }
     .badge-ok           { background:#d1fae5; color:#065f46; }
+    .badge-watch        { background:#fef3c7; color:#92400e; }
     .ops-table { font-size: .84rem; }
     .ops-table th { background: #f7fafc; font-weight: 700; font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: #718096; border-top: none; border-bottom: 2px solid #e2e8f0; }
     .ops-table td { vertical-align: middle; border-color: #f0f4f8; }
@@ -154,6 +200,12 @@
     .dataTables_wrapper input.form-control {
         border-radius: 6px; border: 1.5px solid #e2e8f0; font-size: .82rem;
     }
+    @@media (max-width: 1199px) {
+        .driver-metrics { grid-template-columns: repeat(2, minmax(180px, 1fr)); }
+    }
+    @@media (max-width: 767px) {
+        .driver-metrics { grid-template-columns: 1fr; }
+    }
 </style>
 
 <div class="content-header clearfix">
@@ -162,6 +214,62 @@
 
 <section class="content">
     <div class="container-fluid">
+
+        @* ── Architectural Driver Metrics ── *@
+        <div class="card card-default ops-section">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5>
+                    <span class="section-icon icon-metrics">&#x1F4CA;</span>
+                    Architectural Driver Metrics
+                    <span class="section-count" id="metrics-overall">—</span>
+                </h5>
+                <div class="d-flex align-items-center" style="gap:.75rem">
+                    <span class="driver-updated" id="metrics-updated">—</span>
+                    <a class="ops-refresh-btn" href="http://localhost:3000/d/verdemart-architectural-drivers/verdemart-architectural-drivers" target="_blank" rel="noopener">
+                        Grafana
+                    </a>
+                    <button class="ops-refresh-btn" onclick="refreshMetrics()">
+                        <span class="spin">&#x21bb;</span> Refresh
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="driver-metrics">
+                    <div class="driver-metric" id="metric-availability">
+                        <div class="driver-title">
+                            <span>Availability</span>
+                            <span id="metric-availability-status">—</span>
+                        </div>
+                        <div class="driver-value" id="metric-availability-value">—</div>
+                        <div class="driver-secondary" id="metric-availability-detail">—</div>
+                    </div>
+                    <div class="driver-metric" id="metric-resilience">
+                        <div class="driver-title">
+                            <span>Resilience</span>
+                            <span id="metric-resilience-status">—</span>
+                        </div>
+                        <div class="driver-value" id="metric-resilience-value">—</div>
+                        <div class="driver-secondary" id="metric-resilience-detail">—</div>
+                    </div>
+                    <div class="driver-metric" id="metric-consistency">
+                        <div class="driver-title">
+                            <span>Consistency</span>
+                            <span id="metric-consistency-status">—</span>
+                        </div>
+                        <div class="driver-value" id="metric-consistency-value">—</div>
+                        <div class="driver-secondary" id="metric-consistency-detail">—</div>
+                    </div>
+                    <div class="driver-metric" id="metric-operability">
+                        <div class="driver-title">
+                            <span>Operability</span>
+                            <span id="metric-operability-status">—</span>
+                        </div>
+                        <div class="driver-value" id="metric-operability-value">—</div>
+                        <div class="driver-secondary" id="metric-operability-detail">—</div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         @* ── Outbox ── *@
         <div class="card card-default ops-section">
@@ -365,6 +473,92 @@
 
 <script>
     var CB_THRESHOLD = 5; // must match Resilience__CircuitFailureThreshold
+
+    function readField(row, pascalName) {
+        if (!row) return null;
+        var camelName = pascalName.charAt(0).toLowerCase() + pascalName.slice(1);
+        return row[pascalName] != null ? row[pascalName] : row[camelName];
+    }
+
+    function formatSeconds(value) {
+        if (value == null || value === '') return '—';
+        var number = Number(value);
+        if (number < 60) return number.toFixed(1) + 's';
+        return (number / 60).toFixed(1) + 'm';
+    }
+
+    function metricStatusBadge(status) {
+        var normalized = (status || '').toLowerCase();
+        var cls = normalized === 'degraded' ? 'badge-failed'
+                : normalized === 'watch' ? 'badge-watch'
+                : 'badge-ok';
+        return '<span class="badge-status ' + cls + '">' + (status || 'Unknown') + '</span>';
+    }
+
+    function setDriverMetric(key, status, value, detail) {
+        var normalized = (status || '').toLowerCase();
+        var panel = $('#metric-' + key);
+        panel.removeClass('healthy watch degraded').addClass(normalized || 'healthy');
+        $('#metric-' + key + '-status').html(metricStatusBadge(status));
+        $('#metric-' + key + '-value').text(value);
+        $('#metric-' + key + '-detail').text(detail);
+    }
+
+    function refreshMetrics() {
+        $.get('@Url.Action("Metrics", "Operations")')
+            .done(function (data) {
+                var overallStatus = readField(data, 'OverallStatus') || 'Unknown';
+                var generatedAt = readField(data, 'GeneratedAtUtc') || '';
+                var outboxBacklog = readField(data, 'OutboxBacklog') || 0;
+                var outboxRetrying = readField(data, 'OutboxRetrying') || 0;
+                var outboxFailed = readField(data, 'OutboxFailed') || 0;
+                var publishedLast24Hours = readField(data, 'PublishedLast24Hours') || 0;
+                var p95Latency = readField(data, 'P95PublishLatencySecondsLast24Hours');
+                var openCircuits = readField(data, 'OpenCircuitBreakers') || 0;
+                var halfOpenCircuits = readField(data, 'HalfOpenCircuitBreakers') || 0;
+                var circuitFailures = readField(data, 'CircuitBreakerFailures') || 0;
+                var staleInventory = readField(data, 'StaleInventoryProjections') || 0;
+                var conflictedInventory = readField(data, 'ConflictedInventoryProjections') || 0;
+                var pendingReconciliation = readField(data, 'PendingInventoryReconciliations') || 0;
+                var newDeadLetters = readField(data, 'NewDeadLetters') || 0;
+                var requeuedDeadLetters = readField(data, 'RequeuedDeadLettersLast24Hours') || 0;
+                var oldestDeadLetterAge = readField(data, 'OldestNewDeadLetterAgeMinutes');
+
+                $('#metrics-overall').html(metricStatusBadge(overallStatus));
+                $('#metrics-updated').text(generatedAt ? 'Updated ' + generatedAt.toString().substring(0, 19).replace('T', ' ') + ' UTC' : '—');
+
+                setDriverMetric(
+                    'availability',
+                    readField(data, 'AvailabilityStatus'),
+                    outboxBacklog + ' queued',
+                    'Published 24h: ' + publishedLast24Hours + ' | Failed: ' + outboxFailed + ' | P95 publish: ' + formatSeconds(p95Latency)
+                );
+                setDriverMetric(
+                    'resilience',
+                    readField(data, 'ResilienceStatus'),
+                    openCircuits + ' open',
+                    'Half-open: ' + halfOpenCircuits + ' | Retrying: ' + outboxRetrying + ' | Adapter failures: ' + circuitFailures
+                );
+                setDriverMetric(
+                    'consistency',
+                    readField(data, 'ConsistencyStatus'),
+                    conflictedInventory + ' conflicts',
+                    'Stale: ' + staleInventory + ' | Pending reconciliation: ' + pendingReconciliation
+                );
+                setDriverMetric(
+                    'operability',
+                    readField(data, 'OperabilityStatus'),
+                    newDeadLetters + ' new DLQ',
+                    'Requeued 24h: ' + requeuedDeadLetters + ' | Oldest new: ' + (oldestDeadLetterAge == null ? '—' : Number(oldestDeadLetterAge).toFixed(1) + 'm')
+                );
+            })
+            .fail(function () {
+                $('#metrics-overall').html(metricStatusBadge('Degraded'));
+                $('.driver-metric').removeClass('healthy watch').addClass('degraded');
+                $('.driver-value').text('—');
+                $('.driver-secondary').text('Metrics endpoint failed');
+            });
+    }
 
     // ── order link (standalone) ───────────────────────────────────────────────
     function renderOrderLink(data) {
@@ -579,6 +773,7 @@
     }
 
     $(document).ready(function () {
+        refreshMetrics();
         refreshCircuitBreakers();
         refreshInventoryProjections();
 

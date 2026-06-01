@@ -9,7 +9,7 @@ WORKDIR /src/Integration/Nop.IntegrationWorker
 RUN dotnet publish Nop.IntegrationWorker.csproj -c Release -o /app/published --nologo
 
 # Runtime stage
-FROM mcr.microsoft.com/dotnet/runtime:10.0-alpine AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
 
 # ICU is required by Microsoft.Data.SqlClient on Alpine
 RUN apk add --no-cache icu-libs icu-data-full

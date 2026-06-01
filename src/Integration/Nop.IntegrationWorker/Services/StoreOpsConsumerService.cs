@@ -6,8 +6,10 @@ using Microsoft.Extensions.Options;
 using Nop.IntegrationWorker.Clients;
 using Nop.IntegrationWorker.Data;
 using Nop.IntegrationWorker.Messaging;
+using Nop.IntegrationWorker.Metrics;
 using Nop.IntegrationWorker.Models;
 using Nop.IntegrationWorker.Options;
+using System.Diagnostics;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
@@ -15,6 +17,8 @@ namespace Nop.IntegrationWorker.Services;
 
 public class StoreOpsConsumerService : BackgroundService
 {
+    private const string AdapterName = "storepos";
+
     private readonly RabbitMqConnectionFactory _connectionFactory;
     private readonly StorePosClient _storePos;
     private readonly WorkerDataService _data;
@@ -69,12 +73,14 @@ public class StoreOpsConsumerService : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Cannot deserialise storeops message — discarding");
+            WorkerMetrics.ObserveWorkerMessage(AdapterName, "discarded");
             await channel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: false, cancellationToken: ct);
             return;
         }
 
         if (payload is null)
         {
+            WorkerMetrics.ObserveWorkerMessage(AdapterName, "discarded");
             await channel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: false, cancellationToken: ct);
             return;
         }
@@ -85,19 +91,23 @@ public class StoreOpsConsumerService : BackgroundService
         if (existing is not null)
         {
             _logger.LogInformation("StoreOps already processed (key={Key}) — acking", storeOpsKey);
+            WorkerMetrics.ObserveWorkerMessage(AdapterName, "idempotent");
             await channel.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: ct);
             return;
         }
 
+        var stopwatch = Stopwatch.StartNew();
         try
         {
             var pickupRef = await _storePos.ConfirmPickupAsync(body, ct);
+            stopwatch.Stop();
+            WorkerMetrics.ObserveAdapterCall(AdapterName, "success", stopwatch.Elapsed.TotalSeconds);
 
             await _data.InsertIdempotencyRecordAsync(storeOpsKey,
                 JsonSerializer.Serialize(new
                 {
                     status = "processed",
-                    adapter = "storepos",
+                    adapter = AdapterName,
                     pickupReference = pickupRef,
                     processedAtUtc = DateTime.UtcNow
                 }));
@@ -105,10 +115,15 @@ public class StoreOpsConsumerService : BackgroundService
             _logger.LogInformation("Store pickup confirmed for Order={OrderId}, pickupRef={Ref}",
                 payload.OrderId, pickupRef);
 
+            WorkerMetrics.ObserveWorkerMessage(AdapterName, "processed");
             await channel.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: ct);
         }
         catch (Exception ex)
         {
+            stopwatch.Stop();
+            WorkerMetrics.ObserveAdapterCall(AdapterName, "failure", stopwatch.Elapsed.TotalSeconds);
+            WorkerMetrics.ObserveRetry(AdapterName);
+            WorkerMetrics.ObserveWorkerMessage(AdapterName, "requeued");
             _logger.LogWarning(ex, "StorePOS call failed for Order={OrderId} — nacking (requeue)", payload.OrderId);
             await channel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: true, cancellationToken: ct);
         }

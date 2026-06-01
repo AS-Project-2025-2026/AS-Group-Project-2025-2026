@@ -69,6 +69,13 @@ public partial class OperationsController : BaseAdminController
         return Json(model);
     }
 
+    [CheckPermission(StandardPermission.System.MANAGE_MAINTENANCE)]
+    public virtual async Task<IActionResult> Metrics()
+    {
+        var model = await _integrationRecordService.GetIntegrationMetricsSnapshotAsync();
+        return Json(model);
+    }
+
     [HttpPost]
     [CheckPermission(StandardPermission.System.MANAGE_MAINTENANCE)]
     public virtual async Task<IActionResult> RequeueOutbox(int id)

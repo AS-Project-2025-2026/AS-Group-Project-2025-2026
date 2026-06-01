@@ -21,6 +21,7 @@ var host = Host.CreateDefaultBuilder(args)
         services.Configure<StorePosOptions>(cfg.GetSection("StorePos"));
         services.Configure<CustomerSupportOptions>(cfg.GetSection("CustomerSupport"));
         services.Configure<ResilienceOptions>(cfg.GetSection("Resilience"));
+        services.Configure<MetricsOptions>(cfg.GetSection("Metrics"));
 
         var connectionString = cfg["ConnectionStrings:ConnectionString"]
             ?? throw new InvalidOperationException("ConnectionStrings:ConnectionString is required");
@@ -72,6 +73,7 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddHostedService<StoreOpsConsumerService>();
         services.AddHostedService<InventorySyncService>();
         services.AddHostedService<CustomerSupportConsumerService>();
+        services.AddHostedService<MetricsServerService>();
     })
     .Build();
 
