@@ -1,8 +1,8 @@
 # Presentation Demo Script — VerdeMart Omnichannel
 
-> **Total demo time: ~8 minutes**
-> Keep two terminals open side by side: one for commands, one for logs.
-> Browser open at `http://localhost:8080` and `http://localhost:8080/Admin/Operations/List`.
+> **Total demo time: ~6 minutes**
+> Two terminals open side by side: one for commands, one for logs (`make logs`).
+> Three browser tabs ready: storefront, Operations View, Grafana.
 
 ---
 
@@ -15,95 +15,82 @@ make up
 # Confirm all services are healthy
 make status
 
-# Clear any leftover demo data and set a clean baseline
+# Clean baseline
 make demo-healthy
 
-# Open logs in a second terminal (leave this running the whole demo)
+# Open logs in a second terminal — leave running the whole demo
 make logs
 ```
 
-**Check:**
-- `http://localhost:8080` loads the storefront
-- `http://localhost:8080/Admin/Operations/List` shows green outbox records, all circuit breakers Closed, no dead letters
+**Check all three tabs are working:**
+- `http://localhost:8080` — storefront loads
+- `http://localhost:8080/Admin/Operations/List` — green outbox records, all circuit breakers Closed, no dead letters
+- `http://localhost:3000` — Grafana, log in `admin` / `admin`, open **VerdeMart — Integration Observability**, scroll to the **Resilience** row and leave it there
 
 ---
 
-## Scene 1 — Normal Flow (1 min)
+## Scene 1 — Warehouse Failure → Circuit Breaker → Recovery (3 min)
 
-**What to say:**
-> "This is VerdeMart's storefront running on nopCommerce. When a customer places an order, the checkout completes instantly — the warehouse is never called synchronously. Instead, an outbox record is written atomically with the order, and the Integration Worker picks it up in the background."
-
-**Commands:**
-```bash
-make order
-```
-
-**Then show in browser:** `http://localhost:8080/Admin/Operations/List`
-
-**What to point at:**
-- New outbox record with status `Published`
-- All circuit breakers `Closed`
-- The worker log shows: `Outbox picked up` → `Adapter call succeeded`
-
-**What to say:**
-> "The order was accepted, the fulfillment request reached the warehouse, and the checkout was never waiting on it. This is ADR 1 — async fulfillment — and ADR 2 — the transactional outbox."
-
----
-
-## Scene 2 — Warehouse Failure + Circuit Breaker (3 min)
-
-**What to say:**
-> "Now we simulate the warehouse going down — this is our mandatory pressure point. Watch what happens to the checkout and to the integration layer separately."
+**What to say (while showing the Operations View baseline):**
+> "Before we break anything — this is the normal state. Orders are flowing, outbox records are Published, all circuit breakers are Closed. The checkout never calls the warehouse directly; it writes an outbox record atomically with the order, and the Integration Worker dispatches it asynchronously. That's why warehouse availability is irrelevant to the customer."
 
 **Step 1 — break the warehouse:**
 ```bash
 make warehouse-fail
 ```
 
-**Step 2 — place an order while it's down:**
+**Step 2 — place an order:**
 ```bash
 make order
 ```
 
-**What to point at in the logs (leave 30–60 seconds for this to play out):**
+**Point at the logs and wait ~30 seconds:**
 - `Adapter call failed` — first attempt
-- `Retry scheduled` with `DelaySeconds` doubling each time (2s → 4s → 8s...)
+- `Retry scheduled` with `DelaySeconds` doubling (2s → 4s → 8s...)
 - After 3 failures: `Circuit breaker OPENED`
-- Then: `Circuit breaker OPEN — skipping call`
+- `Circuit breaker OPEN — skipping call`
 
 **What to say:**
-> "The checkout completed immediately — the customer got their confirmation. Behind the scenes the warehouse adapter is failing, the exponential backoff is kicking in, and after 3 failures the circuit breaker opens to stop hammering a system that's clearly down. This is ADR 6."
+> "The checkout completed immediately — the customer has their confirmation. Behind the scenes the warehouse is failing, exponential backoff is kicking in, and after 3 consecutive failures the circuit breaker opens. It stops hammering a system that's clearly down. This is ADR 6."
 
-**Show in Operations View:**
+**Switch to Operations View:**
 - Outbox record in `Retrying` state with retry count and next attempt time
-- Warehouse circuit breaker showing `Open`
+- Warehouse circuit breaker `Open`
 
 **What to say:**
-> "Operators can see exactly what's happening. They don't need to query the database — the Operations View surfaces retry count, failure reason, and when the next probe will happen."
+> "Operators see exactly what's happening — retry count, failure reason, when the next probe fires. No database query needed."
+
+**Switch to Grafana (`http://localhost:3000`):**
+- **"Adapter Failures (5m)"** stat — climbing
+- **"Retry Attempts (5m)"** stat — climbing
+- **"Adapter Call Rate by Outcome"** timeseries — visible failure spike
+
+**What to say:**
+> "And here's the architectural evidence. Prometheus scrapes the Integration Worker every 10 seconds. You can see the exact moment the warehouse went down — failures spike, retries climb, successful calls drop to zero. Operability isn't just a claim — it's visible."
 
 **Step 3 — recover the warehouse:**
 ```bash
 make warehouse-recover
 ```
 
-**Wait ~30 seconds, then point at logs:**
+**Wait ~30 seconds, point at logs:**
 - `Circuit breaker HALF-OPEN probe`
 - `Adapter call succeeded`
 - `Circuit breaker CLOSED`
 
-**Show in Operations View:**
-- Outbox record flips to `Published`
-- Circuit breaker back to `Closed`
+**Stay on Grafana:**
+- Failure stat drops back to zero
+- Success calls resume on the timeseries — recovery timestamp visible on the chart
 
 **What to say:**
-> "Once the warehouse comes back, the circuit breaker sends a single probe. It succeeds, the circuit closes, and the pending order is dispatched automatically. No operator action required. This is the recovery story for QAS 1."
+> "The probe succeeds, the circuit closes, and the pending order is dispatched automatically. No operator action. You can see the full lifecycle — degradation, sustained failure, recovery — right on the dashboard. This is the QAS 1 story."
 
 ---
 
-## Scene 3 — Shipping Outage → Dead Letter → Requeue (2 min)
+## Scene 2 — Shipping Outage → Dead Letter → Operator Requeue (3 min)
 
 **What to say:**
-> "Now we show what happens when retries are exhausted — the shipping provider goes down and stays down long enough to exceed our maximum retry attempts."
+> "Now we show what happens when automatic recovery isn't enough — the shipping provider stays down long enough to exhaust all retry attempts."
 
 **Step 1 — break shipping:**
 ```bash
@@ -115,23 +102,24 @@ make shipping-fail
 make order
 ```
 
-**Wait for retries to exhaust (with demo params this is faster). Point at logs:**
+**Point at logs as retries exhaust:**
 - `Adapter call failed` (shipping)
+- `Retry scheduled` with increasing delay
 - `Dead-letter created` — adapter=shipping
 
-**Show in Operations View → Dead Letters tab:**
-- New entry with `EscalationState = New`, failure reason, correlation ID
-
 **What to say:**
-> "The fulfillment side succeeded — the warehouse got the order. But the shipping label couldn't be created. Rather than silently dropping it, the system creates a dead-letter record. The paid order is never lost. This is ADR 7."
+> "Warehouse succeeded — the warehouse got the order. But the shipping label couldn't be created and all retries are gone. Instead of silently dropping it, the system writes a dead-letter record. The paid order is never lost. This is ADR 7."
 
-**Step 3 — recover shipping and requeue:**
+**Switch to Operations View → Dead Letters tab:**
+- Entry with `EscalationState = New`
+- Failure reason and correlation ID visible
+
+**Step 3 — recover shipping:**
 ```bash
 make shipping-recover
 ```
 
-**In Operations View → Dead Letters tab:**
-- Click **Requeue** on the failed record
+**In Operations View → Dead Letters tab — click Requeue:**
 
 **Point at logs:**
 - Worker picks up the requeued record
@@ -142,54 +130,7 @@ make shipping-recover
 - New outbox record `Published`
 
 **What to say:**
-> "One button in the UI. No scripting, no database access. The operator requeues it, the worker dispatches it, and the shipping label is created. This closes the recovery loop for QAS 4."
-
----
-
-## Scene 4 — Inventory Conflict / Staleness (2 min)
-
-> Pick **one** of these two — don't do both, no time. Conflict is more visually striking.
-
-### Option A — Inventory Conflict (recommended)
-
-**What to say:**
-> "Our last scenario: the WMS says we have 50 units of a product, but the store's POS reports 3 — someone's been selling in-store. The difference exceeds our tolerance of 2 units."
-
-```bash
-make conflict-inject
-```
-
-**Wait ~15 seconds, then show Operations View → Inventory tab:**
-- `ConflictFlag = true` on affected rows
-- `PendingReconciliation = true`
-- `StockQuantity` in nopCommerce updated to the lower (conservative) value
-
-**What to say:**
-> "The system detected the conflict within one sync cycle, flagged it, and capped the checkout quantity at the lower number to prevent overselling. The operator can see it here and investigate. This is QAS 6."
-
-**To clean up:**
-```bash
-make conflict-clear
-```
-
-### Option B — Inventory Staleness
-
-**What to say:**
-> "What if the WMS stops sending updates entirely? After 30 seconds without a confirmed stock update, we mark those records as stale."
-
-```bash
-make stale-start
-```
-
-**Wait ~35 seconds, show Operations View → Inventory tab:**
-- Rows highlighted with `IsStale = true`
-
-**What to say:**
-> "Operators can see which stock figures are stale and act before a customer hits an oversell. When the WMS comes back the flag clears automatically on the next sync cycle."
-
-```bash
-make stale-stop
-```
+> "One button. No scripting, no database access. The operator requeues it, the worker dispatches it, the shipping label is created. This closes the recovery loop for QAS 4 — and it's the difference between a resilient system and one that just loses work silently."
 
 ---
 
@@ -197,30 +138,27 @@ make stale-stop
 
 | Problem | Fix |
 |---|---|
-| Operations View shows nothing | `make demo-healthy` to reset to clean state |
-| Circuit breaker not opening | Check `make logs` — may need to place 2–3 more orders |
-| Logs too noisy | Filter in the terminal: `make logs \| grep -E "OPEN\|CLOSED\|Dead-letter\|succeeded\|failed"` |
+| Operations View shows nothing | `make demo-healthy` to reset |
+| Circuit breaker not opening | Place 2–3 more orders with `make order` |
+| Logs too noisy | `make logs \| grep -E "OPEN\|CLOSED\|Dead-letter\|succeeded\|failed"` |
 | Stack not responding | `make down && make up` |
-| Want a full reset | `make reset && make up` |
+| Full reset needed | `make reset && make up` |
 
 ---
 
-## Useful URLs
+## Browser tabs cheat sheet
 
-| URL | What it shows |
+| Tab | URL |
 |---|---|
-| `http://localhost:8080` | VerdeMart storefront |
-| `http://localhost:8080/Admin/Operations/List` | Operations View (outbox, dead letters, circuit breakers, inventory) |
-| `http://localhost:15672` | RabbitMQ management (guest/guest) — queues and message rates |
-| `http://localhost:3000` | Grafana dashboards — metrics and logs |
+| Storefront | `http://localhost:8080` |
+| Operations View | `http://localhost:8080/Admin/Operations/List` |
+| Grafana | `http://localhost:3000` → VerdeMart — Integration Observability |
 
 ---
 
 ## One-line summary for each scene
 
-| Scene | One sentence |
+| Scene | What it proves |
 |---|---|
-| Normal flow | Checkout completes; warehouse notified asynchronously via outbox. |
-| Warehouse failure | Retries, circuit breaker opens, checkout never blocked, auto-recovers. |
-| Shipping dead letter | Max retries exhausted, dead letter created, operator requeues, resolved. |
-| Inventory conflict | WMS/POS disagree, conflict flagged, checkout capped at lower quantity. |
+| Warehouse failure → recovery | Pressure point: degradation visible, checkout unblocked, auto-recovery. Covers ADR 1, ADR 2, ADR 6, QAS 1. |
+| Shipping dead letter → requeue | Escalation path: permanent failure retained, operator resolves with one click. Covers ADR 7, QAS 4. |
