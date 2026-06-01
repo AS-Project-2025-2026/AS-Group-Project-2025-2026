@@ -2,25 +2,21 @@
 
 \section{Purpose}
 
-The feasibility spike focuses on the riskiest architectural assumption in this checkpoint: that
-nopCommerce can remain the commerce core while durable omnichannel integration is added around
-it. The spike therefore asks whether the current codebase has credible seams for the first
-target evolution step: recording an order, creating durable integration work, and processing
-that work outside the customer checkout path.
+The feasibility spike validates the riskiest architectural assumption of this project: that
+nopCommerce can remain the commerce core of the VerdeMart omnichannel scenario while a
+durable, independently deployable integration layer is built around it without rewriting
+checkout or the core order model.
 
-This chapter is intentionally scoped. It does not claim that the outbox, Integration Worker,
-RabbitMQ queues, warehouse adapter, retry policy, dead-letter queue, or support dashboard are
-already implemented. Those elements are part of the proposed target architecture. The spike
-checks whether they can be introduced without a rewrite, and whether the nopCommerce source
-already contains the specific seams that ADR~2 and the evolution roadmap depend on.
+The spike was conducted in two stages. The first stage, completed at the architecture
+checkpoint, was a source-code inspection that confirmed the existence of the required seams
+in the nopCommerce baseline. The second stage, completed for the final delivery, is a full
+runtime implementation that exercises those seams under the mandatory Scenario~C pressure
+points: warehouse unavailability, shipping outage, inventory staleness, and cross-channel
+inventory conflict.
 
 \section{What Was Tested}
 
-The spike was conducted by reading the nopCommerce source directly against the classes named
-in the ADRs, rather than building a full runtime implementation. This was appropriate for the
-checkpoint because the main risk was architectural fit, not runtime behaviour: the question was
-whether nopCommerce already exposes a stable order-placement seam and a background execution
-mechanism credible enough to support the proposed asynchronous integration path.
+The runtime spike implements and exercises the following capabilities end to end:
 
 \begingroup
 \small
@@ -29,28 +25,55 @@ mechanism credible enough to support the proposed asynchronous integration path.
 \begin{center}
 \begin{tabular}{|p{0.28\textwidth}|p{0.35\textwidth}|p{0.27\textwidth}|}
 \hline
-\textbf{Spike question} & \textbf{Inspection performed} & \textbf{Result} \\
+\textbf{Spike question} & \textbf{How tested at runtime} & \textbf{Result} \\
 \hline
-Can order creation be used as the trigger for external fulfillment work? &
-Inspected \texttt{OrderProcessingService} around the successful order-placement path. &
-Yes. The order is persisted, order items are created, notifications are sent, and an
-\texttt{OrderPlacedEvent} is published after order creation. \\
+Does order creation atomically produce an outbox record without blocking checkout? &
+Real checkout via the nopCommerce one-page checkout. Outbox record verified in DB
+immediately after order confirmation. &
+Yes. \texttt{OrderProcessingService} writes the order and the outbox record in the same
+transaction. Checkout response is returned before the warehouse is contacted. \\
 \hline
-Is the current event mechanism sufficient for external integration? &
-Inspected \texttt{EventPublisher}. &
-No. Consumers run in process; exceptions are logged; there is no durable retry, replay, or
-dead-letter lifecycle. \\
+Does the Integration Worker dispatch fulfillment commands asynchronously via RabbitMQ? &
+Worker logs inspected after order placement. RabbitMQ management UI queues observed. &
+Yes. Worker picks up the outbox record within polling interval, publishes
+\texttt{FulfillmentRequested} to \texttt{fulfillment.requests}, and marks the record
+\texttt{Published}. \\
 \hline
-Is there a background execution seam for retry or polling work? &
-Inspected \texttt{ScheduleTaskRunner} and scheduled-task behaviour. &
-Yes, with limits. Scheduled tasks can execute background work with locking and interval checks,
-but they need explicit integration state to be reliable. \\
+Does the retry policy and circuit breaker protect the system under warehouse failure? &
+Warehouse stub set to \texttt{failed} mode. Orders placed. Worker logs and Operations View
+observed until circuit breaker opened. &
+Yes. Exponential backoff retries are scheduled; after the configured failure threshold the
+circuit breaker opens; subsequent calls are skipped; the Operations View shows the adapter
+state and retry count. \\
 \hline
-Can existing inventory and shipment concepts support Scenario C projections? &
-Inspected warehouse inventory, stock history, product inventory adjustment, and shipment classes. &
-Partially. The baseline has stock, reserved quantity, stock history, tracking, shipped,
-delivered, and ready-for-pickup fields, but not source freshness, conflict flags, or
-integration-state metadata. \\
+Does the system recover automatically when the warehouse becomes available? &
+Warehouse stub restored to \texttt{normal}. Cooldown elapsed. Worker probe observed in logs. &
+Yes. Circuit breaker enters \texttt{HalfOpen} state, sends a probe, succeeds, and closes.
+Pending outbox records are dispatched automatically. \\
+\hline
+Does the dead-letter queue capture messages that exhaust all retries? &
+Shipping stub set to \texttt{outage} mode. Order placed. Worker left to exhaust max retry
+attempts. &
+Yes. After max attempts a \texttt{DeadLetterRecord} is created with adapter, failure reason,
+and correlation ID. The Operations View surfaces the entry for operator action. \\
+\hline
+Does the requeue action recover a dead-letter record without operator scripting? &
+Requeue button clicked in Operations View. Shipping stub restored. &
+Yes. A new outbox record is created from the dead-letter payload. The worker dispatches it
+on the next cycle and marks it \texttt{Published}. \\
+\hline
+Is inventory staleness detected and surfaced within the configured threshold? &
+Inventory stub set to \texttt{unavailable}. Staleness threshold set to 30~s for the spike. &
+Yes. After 30~s without a confirmed stock update, \texttt{IsStale} is set on the affected
+\texttt{InventoryProjectionRecord} rows. The Operations View Inventory tab shows yellow
+rows. \\
+\hline
+Is a POS--WMS inventory conflict detected and the checkout quantity bounded? &
+POS stock injected via \texttt{POST /stock/pos-report} with a quantity diverging from the
+WMS value by more than the configured tolerance. &
+Yes. The worker detects the divergence on the next sync cycle, sets \texttt{ConflictFlag},
+records \texttt{PendingReconciliation}, and writes the lower quantity to
+\texttt{Product.StockQuantity} to prevent overselling. \\
 \hline
 \end{tabular}
 \end{center}
@@ -58,124 +81,110 @@ integration-state metadata. \\
 
 \section{What Worked}
 
-The order-placement seam sits at exactly the right level. It fires after the database commit,
-which is where ADR~2's atomicity guarantee needs to be anchored: an outbox record can be
-written in the same transaction without touching the checkout flow or the payment handling path.
+All eight runtime questions were answered positively. The key findings are:
 
-The locking and skip-if-running behaviour of \texttt{ScheduleTaskRunner} is exactly what an
-outbox publisher or retry task requires to avoid overlapping execution. A production Integration
-Worker would run as a separately deployable process, but a scheduled task is architecturally
-sufficient to prove the tactic without introducing a new deployment unit prematurely.
+\textbf{Checkout is fully decoupled from operational systems.} A customer order is accepted
+and the HTTP response returned before the warehouse, shipping provider, or inventory system
+is contacted. The outbox record written atomically with the order is the only coupling point.
+This directly satisfies QAS~1 and QAS~3: warehouse unavailability cannot block checkout, and
+the customer-facing path latency is unaffected by backend synchronisation.
 
-The gap in the existing stock and shipment records is not structural but additive. The commerce
-model already carries the right quantity and lifecycle fields; what is missing is integration
-metadata --- a source identifier, freshness timestamp, stale flag, conflict flag, and retry
-count. Adding those fields extends the existing model rather than replacing it, which confirms
-the data ownership approach described in Chapter~6.
+\textbf{The retry and circuit breaker model behaves as designed.} Under warehouse failure,
+the worker applies exponential backoff with the configured initial delay and multiplier. After
+the failure threshold is reached, the circuit opens and no further calls are made until the
+cooldown expires. After recovery, the half-open probe succeeds and the circuit closes without
+operator intervention. This end-to-end lifecycle was observed in runtime logs and confirmed
+in the Operations View.
+
+\textbf{The dead-letter and requeue flow is operator-accessible.} When a message exhausts
+all retries, the Operations View surfaces it with a one-click requeue action. The requeued
+message is treated as a new outbox record and dispatched normally. No database access or
+scripting is required from the operator.
+
+\textbf{Inventory freshness and conflict detection work at configured thresholds.} Staleness
+is detected within the configured 30-second threshold in the demo environment. Cross-channel
+conflicts are detected within one sync cycle (10~seconds in the demo environment) and the
+conservative lower quantity is immediately applied to the checkout stock gate.
+
+\textbf{The nopCommerce seams identified in the checkpoint inspection are correct.} The
+\texttt{PlaceOrderAsync} method in \texttt{OrderProcessingService} provides the atomic
+write seam. The \texttt{ScheduleTaskRunner} locking mechanism is not used by the Integration
+Worker (which runs as an independent process), but the seam inspection confirmed that the
+nopCommerce scheduled-task infrastructure is available as a fallback execution host if needed.
+The gap in the in-process \texttt{EventPublisher} identified at the checkpoint is correctly
+addressed by the outbox: no external integration depends on the in-process event bus.
 
 \section{What Did Not Work Yet}
 
-The current implementation does not contain a transactional outbox, RabbitMQ integration,
-warehouse adapter, shipping adapter, retry scheduler, dead-letter table, or operator-facing
-integration dashboard. Therefore, the current codebase cannot yet demonstrate the mandatory
-Scenario C pressure point at runtime. If the warehouse is unavailable today, there is no
-durable fulfillment command that remains pending and retries automatically after recovery.
+The following items were identified as out of scope for the spike and are recorded as known
+limitations in \texttt{docs/evidence/known-limitations.md}:
 
-The in-process event mechanism identified in the spike as insufficient for durable external
-integration is not a deficiency in nopCommerce's design for its intended purpose. It is a
-structural gap relative to Scenario C, and it is precisely what ADR~2 addresses. The spike
-therefore confirms the need for the outbox rather than raising doubt about the approach.
+\begin{itemize}
+    \item The POS source has no autonomous event emitter. Conflict detection is triggered
+    via \texttt{POST /stock/pos-report} on the inventory stub, which simulates a POS stock
+    report without a full POS lifecycle.
+    \item Circuit breaker state is not persisted across Integration Worker restarts. On
+    restart the registry initialises to \texttt{Closed} regardless of the last recorded
+    state.
+    \item Idempotency records are not cleaned up by a scheduled task. The \texttt{ExpiresAtUtc}
+    column is populated but no cleanup job runs in the spike environment.
+    \item The \texttt{IsStale} and \texttt{ConflictFlag} states are surfaced in the Operations
+    View but are not exposed on the customer-facing product pages. Customers see the
+    conservative stock quantity but not an explicit freshness indicator.
+    \item Performance measurements under sustained load (QAS~3 response measures) have not
+    been collected. The decoupling is structural and visible in the code; the numeric
+    validation requires a dedicated load-testing environment.
+\end{itemize}
 
 \section{Evidence}
 
-The three most critical findings are supported by direct source references from the nopCommerce
-repository.
+Runtime evidence is collected in \texttt{docs/evidence/} and covers the following scenarios:
 
-\textbf{Insertion point in \texttt{OrderProcessingService}.}
-The \texttt{PlaceOrderAsync} method in
-\nolinkurl{Nop.Services/Orders/OrderProcessingService.cs}
-ends its successful path with the following sequence (lines 1608--1621):
+\begingroup
+\small
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{center}
+\begin{tabular}{|p{0.30\textwidth}|p{0.30\textwidth}|p{0.30\textwidth}|}
+\hline
+\textbf{Scenario} & \textbf{Evidence file} & \textbf{What it shows} \\
+\hline
+Normal flow & \texttt{screenshots/05-normal-flow.png} &
+Outbox records with \texttt{Published} status; all circuit breakers \texttt{Closed}. \\
+\hline
+RabbitMQ queues & \texttt{screenshots/06-rabbitmq-queues.png} &
+\texttt{fulfillment.requests}, \texttt{shipping.requests}, \texttt{fulfillment.dead}, and
+\texttt{shipping.dead} queues present and active. \\
+\hline
+Warehouse failure & \texttt{screenshots/07-warehouse-failure-cb-open.png} &
+Outbox records in \texttt{Retrying} and \texttt{Failed} states; warehouse circuit breaker
+in \texttt{Open} state. \\
+\hline
+Warehouse recovery & \texttt{screenshots/08-warehouse-recovery.png} &
+All circuit breakers returned to \texttt{Closed}; pending records dispatched. \\
+\hline
+Dead-letter creation & \texttt{screenshots/09-deadletter-created.png} &
+Dead letter record with \texttt{EscalationState = New} after shipping outage exhausts
+retries. \\
+\hline
+Dead-letter requeue & \texttt{screenshots/10-deadletter-requeued.png} &
+Dead letter \texttt{EscalationState = Requeued}; new outbox record \texttt{Published}. \\
+\hline
+Inventory staleness & \texttt{screenshots/03-inventory-stale.png} &
+\texttt{IsStale = true} on inventory projection rows after threshold exceeded. \\
+\hline
+Inventory conflict & \texttt{screenshots/04-inventory-conflict.png} &
+\texttt{ConflictFlag = true} on affected rows; checkout quantity bounded to lower value. \\
+\hline
+Worker logs & \texttt{logs/warehouse-failure.txt} &
+Retry attempts with exponential delay, circuit breaker open and close events. \\
+\hline
+\end{tabular}
+\end{center}
+\endgroup
 
-\begin{verbatim}
-    //notifications
-    await SendNotificationsAndSaveNotesAsync(order);
-    //reset checkout data
-    await _customerService.ResetCheckoutDataAsync(...);
-    await _customerActivityService.InsertActivityAsync(...);
-    //raise event
-    await _eventPublisher.PublishAsync(new OrderPlacedEvent(order));
-    //check order status
-    await CheckOrderStatusAsync(order);
-\end{verbatim}
-
-The order and its line items are already committed to the database before this point. An outbox
-record inserted here --- in the same transaction scope --- would satisfy the atomicity guarantee
-required by ADR~2 without touching the checkout flow or the payment handling path.
-
-\textbf{Durability gap in \texttt{EventPublisher}.}
-The \texttt{PublishAsync} method in
-\nolinkurl{Nop.Services/Events/EventPublisher.cs}
-resolves registered consumers and dispatches each one in sequence:
-
-\begin{verbatim}
-    foreach (var consumer in consumers)
-    {
-        try { await consumer.HandleEventAsync(@event); }
-        catch (Exception exception)
-        {
-            await logger.ErrorAsync(exception.Message, exception);
-        }
-    }
-\end{verbatim}
-
-Exceptions are caught, logged, and swallowed. No failed work is persisted as a retryable
-record. This is the structural gap that ADR~2 exists to close.
-
-\textbf{Locking behaviour in \texttt{ScheduleTaskRunner}.}
-The \texttt{ExecuteAsync} method in
-\nolinkurl{Nop.Services/ScheduleTasks/ScheduleTaskRunner.cs}
-skips execution if a previous run is still in progress and otherwise acquires a distributed
-lock before executing:
-
-\begin{verbatim}
-    if (IsTaskAlreadyRunning(scheduleTask))
-        return;
-    ...
-    await _locker.PerformActionWithLockAsync(
-        scheduleTask.Type, expiration,
-        () => PerformTaskAsync(scheduleTask));
-\end{verbatim}
-
-This guarantees that an outbox publisher or retry task does not overlap with a previous
-execution, which is the minimum safety property required for the outbox publishing loop.
-
-The remaining findings --- the inventory and shipment fields available on
-\texttt{Product\allowbreak Warehouse\allowbreak Inventory},
-\texttt{Stock\allowbreak Quantity\allowbreak History}, and \texttt{Shipment} ---
-were confirmed by inspecting the corresponding entity classes. They confirm that the extension
-model described in Chapter~6 is additive rather than structural: the commerce records are
-already there, and only integration metadata fields are missing.
-\section{Draft Implementation Scope}
-
-The implementation spike focuses on the smallest end-to-end slice that proves reliable asynchronous fulfillment propagation from nopCommerce to an external warehouse dependency.
-
-\begin{enumerate}
-    \item Add an \texttt{OmnichannelIntegrationTask} or outbox table with order ID, message
-    type, payload, status, retry count, next attempt time, correlation ID, idempotency key,
-    and last error.
-    \item Create one outbox record when an order is accepted. The record should represent
-    \texttt{FulfillmentRequested}.
-    \item Add a scheduled task that reads pending records and calls a warehouse simulator or
-    stub endpoint.
-    \item Make the simulator return success, timeout, and failure modes through configuration.
-    \item On failure, update the task to retrying or failed with a visible error. On success,
-    mark it accepted or recovered.
-    \item Add a minimal admin or log-based view showing pending, retrying, failed, and
-    recovered states for one order.
-\end{enumerate}
-
-This slice directly demonstrates QA Scenario 1: checkout records the order, warehouse failure
-does not block the customer path, the fulfillment request is retained as an observable record,
-and recovery is visible after the dependency becomes available again. Shipping, inventory
-conflict handling, and dead-letter intervention remain documented target behaviour, while this
-spike confirms that the same architectural seams can support them.
+The complete runtime environment is reproducible from the repository root using
+\texttt{make up} followed by \texttt{./install-nopcommerce.sh}. All pressure scenarios are
+exercisable via \texttt{make warehouse-fail}, \texttt{make shipping-fail},
+\texttt{make stale-start}, and \texttt{make conflict-inject} as documented in
+\texttt{docs/evidence/demo-script.md}.
