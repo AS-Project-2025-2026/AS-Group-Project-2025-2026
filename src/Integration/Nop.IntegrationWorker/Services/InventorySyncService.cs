@@ -65,31 +65,54 @@ public class InventorySyncService : BackgroundService
 
         foreach (var item in items)
         {
-            var others = await _data.GetProjectionsByProductAsync(item.ProductId);
-            var otherSource = others.FirstOrDefault(p => p.SourceSystem != _opts.SourceSystem);
-
             bool conflictFlag = false;
             bool pendingReconciliation = false;
-            int checkoutQty = item.Quantity;
+            int checkoutQty = item.WmsQuantity;
 
-            if (otherSource != null)
+            // If the stub returned a POS quantity, use it directly — no DB lookup needed.
+            // This is the native path for QAS 6 via POST /stock/pos-report on the stub.
+            if (item.PosQuantity.HasValue)
             {
-                var diff = Math.Abs(item.Quantity - otherSource.ReportedQuantity);
+                var diff = Math.Abs(item.WmsQuantity - item.PosQuantity.Value);
                 if (diff > _opts.ConflictToleranceUnits)
                 {
                     conflictFlag = true;
                     pendingReconciliation = true;
-                    checkoutQty = Math.Min(item.Quantity, otherSource.ReportedQuantity);
+                    checkoutQty = Math.Min(item.WmsQuantity, item.PosQuantity.Value);
                     _logger.LogWarning(
-                        "Inventory conflict on ProductId={ProductId}: {Source}={Qty} vs {OtherSource}={OtherQty} (diff={Diff}, tolerance={Tolerance}) — checkout capped at {CheckoutQty}",
-                        item.ProductId, _opts.SourceSystem, item.Quantity,
-                        otherSource.SourceSystem, otherSource.ReportedQuantity,
+                        "Inventory conflict on ProductId={ProductId}: wms={WmsQty} vs pos={PosQty} (diff={Diff}, tolerance={Tolerance}) — checkout capped at {CheckoutQty}",
+                        item.ProductId, item.WmsQuantity, item.PosQuantity.Value,
                         diff, _opts.ConflictToleranceUnits, checkoutQty);
+
+                    // Also upsert the POS projection so it appears in the Operations View
+                    await _data.UpsertInventoryProjectionAsync(
+                        item.ProductId, "pos", item.PosQuantity.Value,
+                        isStale: false, conflictFlag: false, pendingReconciliation: false);
+                }
+            }
+            else
+            {
+                // Fallback: check DB for a manually-injected POS row (e.g. test via SQL)
+                var others = await _data.GetProjectionsByProductAsync(item.ProductId);
+                var dbPos = others.FirstOrDefault(p => p.SourceSystem == "pos");
+                if (dbPos != null)
+                {
+                    var diff = Math.Abs(item.WmsQuantity - dbPos.ReportedQuantity);
+                    if (diff > _opts.ConflictToleranceUnits)
+                    {
+                        conflictFlag = true;
+                        pendingReconciliation = true;
+                        checkoutQty = Math.Min(item.WmsQuantity, dbPos.ReportedQuantity);
+                        _logger.LogWarning(
+                            "Inventory conflict on ProductId={ProductId}: wms={WmsQty} vs pos={PosQty} (diff={Diff}, tolerance={Tolerance}) — checkout capped at {CheckoutQty}",
+                            item.ProductId, item.WmsQuantity, dbPos.ReportedQuantity,
+                            diff, _opts.ConflictToleranceUnits, checkoutQty);
+                    }
                 }
             }
 
             await _data.UpsertInventoryProjectionAsync(
-                item.ProductId, _opts.SourceSystem, item.Quantity,
+                item.ProductId, _opts.SourceSystem, item.WmsQuantity,
                 isStale: false, conflictFlag, pendingReconciliation);
 
             var rows = await _data.UpdateProductStockAsync(item.ProductId, checkoutQty);

@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Nop.IntegrationWorker.Clients;
 
-public record InventoryStockItem(int ProductId, int Quantity);
+public record InventoryStockItem(int ProductId, int WmsQuantity, int? PosQuantity);
 
 public class InventoryClient
 {
@@ -16,9 +16,6 @@ public class InventoryClient
         _logger = logger;
     }
 
-    /// <summary>
-    /// Returns current stock levels. Returns empty list on error so sync can be skipped gracefully.
-    /// </summary>
     public async Task<List<InventoryStockItem>> GetStockAsync(CancellationToken ct = default)
     {
         var response = await _http.GetAsync("/stock", ct);
@@ -40,12 +37,33 @@ public class InventoryClient
         var result = new List<InventoryStockItem>();
         foreach (var item in products.EnumerateArray())
         {
-            if (item.TryGetProperty("productId", out var pid) &&
-                item.TryGetProperty("quantity", out var qty))
-            {
-                result.Add(new InventoryStockItem(pid.GetInt32(), qty.GetInt32()));
-            }
+            if (!item.TryGetProperty("productId", out var pid))
+                continue;
+
+            // Support both old format (quantity) and new format (wmsQuantity + optional posQuantity)
+            int wmsQty;
+            if (item.TryGetProperty("wmsQuantity", out var wmsEl))
+                wmsQty = wmsEl.GetInt32();
+            else if (item.TryGetProperty("quantity", out var qtyEl))
+                wmsQty = qtyEl.GetInt32();
+            else
+                continue;
+
+            int? posQty = item.TryGetProperty("posQuantity", out var posEl)
+                ? posEl.GetInt32()
+                : null;
+
+            result.Add(new InventoryStockItem(pid.GetInt32(), wmsQty, posQty));
         }
         return result;
+    }
+
+    public async Task ReportPosStockAsync(int productId, int quantity, CancellationToken ct = default)
+    {
+        var payload = JsonSerializer.Serialize(new { productId, quantity });
+        var content = new StringContent(payload, System.Text.Encoding.UTF8, "application/json");
+        var response = await _http.PostAsync("/stock/pos-report", content, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        _logger.LogInformation("Inventory /stock/pos-report → {Status}: {Body}", (int)response.StatusCode, body);
     }
 }

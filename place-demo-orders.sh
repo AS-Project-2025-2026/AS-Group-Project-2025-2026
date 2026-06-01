@@ -3,8 +3,10 @@
 # Populates the Operations View with demo data.
 #
 # Usage:
-#   ./place-demo-orders.sh          → healthy state (all green) — screenshot 01
-#   ./place-demo-orders.sh degraded → degraded state (failures, open circuit) — screenshot 02+
+#   ./place-demo-orders.sh           → healthy state (all green) — screenshot 01
+#   ./place-demo-orders.sh degraded  → degraded state (failures, open circuit, dead letter)
+#   ./place-demo-orders.sh conflict  → POS vs WMS inventory conflict via stub HTTP endpoint (QAS 6)
+#   ./place-demo-orders.sh stale     → trigger inventory staleness by making stub unavailable (QAS 2)
 #
 set -euo pipefail
 
@@ -32,10 +34,12 @@ if [[ -z "$ORDER_COUNT" || "$ORDER_COUNT" -eq 0 ]]; then
 fi
 info "Found $ORDER_COUNT orders in DB"
 
-# ── 1. clear previous demo data ───────────────────────────────────────────────
-info "Clearing previous integration demo data..."
-SQL "DELETE FROM OutboxRecord; DELETE FROM DeadLetterRecord; DELETE FROM CircuitBreakerStateRecord;" > /dev/null
-ok "Cleared"
+# ── 1. clear previous demo data (only for DB-population modes) ───────────────
+if [[ "$MODE" == "healthy" || "$MODE" == "degraded" ]]; then
+  info "Clearing previous integration demo data..."
+  SQL "DELETE FROM OutboxRecord; DELETE FROM DeadLetterRecord; DELETE FROM CircuitBreakerStateRecord;" > /dev/null
+  ok "Cleared"
+fi
 
 # ── 2. insert data based on mode ─────────────────────────────────────────────
 if [[ "$MODE" == "healthy" ]]; then
@@ -77,7 +81,7 @@ if [[ "$MODE" == "healthy" ]]; then
   " > /dev/null
   ok "Healthy state inserted — all Published, all Closed, no Dead Letters, no Inventory alerts"
 
-else
+elif [[ "$MODE" == "degraded" ]]; then
 
   info "Inserting DEGRADED state (failures visible)..."
   SQL "
@@ -129,6 +133,77 @@ else
   VALUES ('inventory', 'Closed', 0, NULL, NULL, NULL, DATEADD(SECOND,-10,GETUTCDATE()));
   " > /dev/null
   ok "Degraded state inserted — Retrying + Failed outbox, Dead Letter, shipping Open"
+
+elif [[ "$MODE" == "conflict" ]]; then
+
+  info "Injecting POS vs WMS inventory conflict via stub HTTP endpoint (QAS 6)..."
+
+  # First ensure stub is in normal mode
+  INVENTORY_STUB_MODE=normal docker compose -f /home/alof/Desktop/AS/AS-Group-Project-2025-2026/docker-compose.yml \
+    up -d --no-deps inventory_stub > /dev/null 2>&1
+  sleep 3
+
+  # Clear any existing POS rows from DB
+  SQL "DELETE FROM InventoryProjectionRecord WHERE SourceSystem='pos';" > /dev/null
+
+  # Get current WMS quantities from stub
+  info "Current WMS stock:"
+  curl -s http://localhost:5083/stock 2>/dev/null | python3 -m json.tool 2>/dev/null | grep -E "productId|wmsQuantity|quantity" | head -20
+
+  # Inject POS quantities that diverge by >> 2 units (tolerance) via the stub endpoint
+  # WMS typically has 10-200 units; POS reports much lower to simulate in-store sales
+  for pid in 1 2 3 4 5; do
+    result=$(curl -s -X POST http://localhost:5083/stock/pos-report \
+      -H "Content-Type: application/json" \
+      -d "{\"productId\": $pid, \"quantity\": $((pid * 3))}" 2>/dev/null)
+    echo "  Product $pid POS report: $result" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    print(f'  Product {d[\"productId\"]}: WMS={d.get(\"wmsQuantity\",\"?\")} POS={d[\"posQuantity\"]} conflict={d[\"conflict\"]}')
+except:
+    print(sys.stdin.read())
+" 2>/dev/null || echo "  Product $pid: reported"
+  done
+
+  ok "POS quantities injected via POST /stock/pos-report"
+  info "Waiting for worker sync cycle to detect conflict (35s)..."
+  sleep 35
+
+  conflict_count=$(SQL "SET NOCOUNT ON; SELECT COUNT(*) FROM InventoryProjectionRecord WHERE ConflictFlag=1;" 2>/dev/null | grep -E "^\s*[0-9]" | tr -d ' \r')
+  if [[ "${conflict_count:-0}" -gt 0 ]]; then
+    ok "Conflict detected — $conflict_count WMS projection(s) have ConflictFlag=1"
+  else
+    info "Conflict not yet detected — may need another sync cycle. Check Operations View Inventory tab."
+  fi
+
+elif [[ "$MODE" == "stale" ]]; then
+
+  info "Triggering inventory staleness by making stub unavailable (QAS 2)..."
+
+  # Set stub to unavailable
+  INVENTORY_STUB_MODE=unavailable docker compose -f /home/alof/Desktop/AS/AS-Group-Project-2025-2026/docker-compose.yml \
+    up -d --no-deps inventory_stub > /dev/null 2>&1
+  ok "Inventory stub set to unavailable"
+
+  info "Backdating LastConfirmedUtc by 130s to exceed staleness threshold (120s)..."
+  SQL "UPDATE InventoryProjectionRecord SET LastConfirmedUtc = DATEADD(SECOND,-130,GETUTCDATE());" > /dev/null
+
+  info "Waiting for worker to mark projections stale (15s)..."
+  sleep 15
+
+  stale_count=$(SQL "SET NOCOUNT ON; SELECT COUNT(*) FROM InventoryProjectionRecord WHERE IsStale=1;" 2>/dev/null | grep -E "^\s*[0-9]" | tr -d ' \r')
+  if [[ "${stale_count:-0}" -gt 0 ]]; then
+    ok "Staleness detected — $stale_count projection(s) marked IsStale=true"
+  else
+    info "Not yet stale — waiting another 15s..."
+    sleep 15
+    stale_count=$(SQL "SET NOCOUNT ON; SELECT COUNT(*) FROM InventoryProjectionRecord WHERE IsStale=1;" 2>/dev/null | grep -E "^\s*[0-9]" | tr -d ' \r')
+    ok "Now $stale_count projection(s) marked IsStale=true — refresh Operations View Inventory tab"
+  fi
+
+  echo ""
+  info "To restore: INVENTORY_STUB_MODE=normal docker compose up -d --no-deps inventory_stub"
 
 fi
 
