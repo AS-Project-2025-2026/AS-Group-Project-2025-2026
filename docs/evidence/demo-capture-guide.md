@@ -165,7 +165,7 @@ A tabela deve mostrar `IsStale=1` nas linhas de inventário.
 ```bash
 make conflict-inject
 ```
-Espera 15s, depois:
+Espera alguns segundos, depois:
 ```bash
 make db-inventory >> docs/evidence/logs/conflict-evidence.txt
 make conflict-clear

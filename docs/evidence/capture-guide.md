@@ -109,7 +109,7 @@ INVENTORY_STUB_MODE=normal docker compose up -d --no-deps inventory_stub
 
 **O que capturar:** Operations View com uma linha vermelha, `ConflictFlag = YES`.
 
-O stub de inventário só reporta valores WMS. Para simular um conflito POS precisas de inserir uma linha directamente na base de dados com `SourceSystem = 'pos'` e uma quantidade que difira da WMS em mais de 2 unidades.
+O stub de inventário reporta valores WMS. Para simular um conflito POS, o Store POS stub publica um evento `pos.stock.reported` com uma quantidade que difira da WMS em mais de 2 unidades.
 
 ### Passos:
 
@@ -123,19 +123,19 @@ docker exec -it $(docker compose ps -q nopcommerce_database) \
 
 Anota o valor de `ReportedQuantity` para `ProductId = 1`.
 
-**4.2 Inserir linha POS com quantidade divergente (diferença > 2):**
+**4.2 Publicar stock POS com quantidade divergente (diferença > 2):**
 
-Se o WMS reportou, por exemplo, 50 unidades para o produto 1, insere POS com 10 (diferença = 40 > tolerância de 2):
+Se o WMS reportou, por exemplo, 50 unidades para o produto 1, reporta POS com 10 (diferença = 40 > tolerância de 2):
 
 ```bash
-docker exec -it $(docker compose ps -q nopcommerce_database) \
-  /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "nopCommerce_db_password" \
-  -Q "INSERT INTO InventoryProjectionRecord (ProductId, SourceSystem, ReportedQuantity, LastConfirmedUtc, IsStale, ConflictFlag, PendingReconciliation, UpdatedAtUtc) VALUES (1, 'pos', 10, GETUTCDATE(), 0, 0, 0, GETUTCDATE())"
+curl -i -X POST http://localhost:5084/stock/report \
+  -H "Content-Type: application/json" \
+  -d '{"productId": 1, "quantity": 10}'
 ```
 
-**4.3 Aguardar o próximo ciclo de sync (até 10s) e verificar:**
+**4.3 Aguardar o consumidor POS e verificar:**
 
-O worker, no próximo ciclo, detecta a divergência WMS vs POS e activa `ConflictFlag = 1` em ambas as linhas.
+O worker consome o evento POS, detecta a divergência WMS vs POS e activa `ConflictFlag = 1` em ambas as linhas.
 
 ```bash
 docker compose logs -f integration_worker 2>&1 | grep -i "conflict\|Inventory conflict"
@@ -305,6 +305,9 @@ curl http://localhost:5083/health
 
 # Stock actual do inventory stub
 curl http://localhost:5083/stock
+
+# Stock actual do Store POS stub
+curl http://localhost:5084/store-stock
 
 # Parar tudo e limpar volumes (fresh start)
 docker compose down -v

@@ -69,8 +69,8 @@ public class InventorySyncService : BackgroundService
             bool pendingReconciliation = false;
             int checkoutQty = item.WmsQuantity;
 
-            // If the stub returned a POS quantity, use it directly — no DB lookup needed.
-            // This is the native path for QAS 6 via POST /stock/pos-report on the stub.
+            // Backward-compatible path for old demo payloads that embedded POS stock
+            // inside the inventory response. The current QAS 6 path uses POS events.
             if (item.PosQuantity.HasValue)
             {
                 var diff = Math.Abs(item.WmsQuantity - item.PosQuantity.Value);

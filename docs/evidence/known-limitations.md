@@ -9,22 +9,22 @@ production team would address in later phases.
 
 ---
 
-## 1. POS source is injected manually, not via a live stub
+## 1. POS source is stubbed, not a real vendor integration
 
-**What:** The store/POS system is not backed by a running stub that emits events
-automatically. Conflict detection (QAS 6) is demonstrated by inserting a `pos` row
-directly into `InventoryProjectionRecord` via SQL (`make conflict-inject`), or via the
-`POST /stock/pos-report` endpoint on the inventory stub.
+**What:** The store/POS system is represented by `StorePosStub`, which publishes POS stock
+reports to RabbitMQ through `POST /stock/report`. The Integration Worker consumes those
+messages and writes `SourceSystem = 'pos'` rows into `InventoryProjectionRecord`. Conflict
+detection no longer depends on the inventory stub's `POST /stock/pos-report` shortcut.
 
 **Why:** The POS context was scoped as an external supporting system in the bounded-context
 model (Section 3.3.6). The architectural goal was to show that a POS-originated stock change
 reaches the inventory projection layer *without direct database access* — not to reproduce
-a full POS lifecycle. The conflict detection and checkout-capping logic are fully implemented;
-the missing part is an autonomous POS event emitter.
+a real POS vendor API, authentication model, webhook retry contract, or full store-sales
+lifecycle.
 
-**Consequence:** The QAS 6 demo requires a manual trigger. The architecture is correct; the
-surrounding system representation is reduced to the minimum needed to exercise the pressure
-point.
+**Consequence:** QAS 6 now uses a live POS stub and asynchronous stock event path. The
+remaining limitation is that the source is still a coursework stub rather than an actual
+POS product integration.
 
 ---
 
@@ -117,21 +117,22 @@ timestamp in the database allows an operator to see when the state last changed.
 
 ---
 
-## 7. Performance measurements are under demo-scale load only
+## 7. Performance measurements are under single-host Docker load
 
 **What:** The QAS 3 response measures (checkout p95 < 2 s, order-status p95 < 1 s) have
-not been validated under sustained load (e.g., 5× normal traffic as specified in the
-scenario). The demo environment runs on a single Docker host with shared resources.
+been validated using k6 at 25 virtual users (5× the baseline of 5 concurrent users) on
+a single Docker host. Results: checkout p95 = 74 ms, order-status p95 = 87 ms, 0% errors
+over 5,072 requests in a 90-second run. Both thresholds passed with large headroom.
 
-**Why:** Load testing infrastructure (k6, Locust, JMeter) was not in scope for the
-integration spike. The architectural argument for performance — async work outside the
-checkout path — is structural and visible in the code; the numeric validation requires
-a dedicated load test environment.
+**Why:** The test environment is a single Docker host with shared resources, which constrains
+absolute throughput but not the latency argument. The structural reason the numbers are good —
+no synchronous adapter calls in the checkout path — holds in any deployment where that
+decoupling is preserved.
 
-**Consequence:** The performance claim is architectural (checkout does not synchronously
-wait for warehouse or shipping) rather than measured. The evidence pack contains structural
-evidence (async dispatch, no blocking adapter calls in the checkout path) but not latency
-percentile measurements.
+**Consequence:** The performance claim is now both structural and measured. The single-host
+constraint means the absolute request-rate ceiling is lower than a production cluster, but the
+p95 latency figures directly validate the QAS 3 response measures.
+Evidence: `docs/evidence/logs/qas3-load-test-results.json`.
 
 ---
 
@@ -176,12 +177,12 @@ product page.
 
 | # | Limitation | Architectural impact | Phase to address |
 |---|---|---|---|
-| 1 | POS source requires manual injection | Demo trigger is manual; detection logic is correct | Phase 3 |
+| 1 | POS source is stubbed, not vendor-real | Adapter path is event-driven; vendor API concerns remain out of scope | Phase 3 |
 | 2 | Outbox polling adds propagation delay | Expected cost of async pattern; documented in QAS 1 | By design |
 | 3 | Conflict auto-clear needs both sources active | Manual resolution path exists via Operations View | Phase 3 |
 | 4 | No dead-letter alert/notification | Operator must poll Operations View | Phase 4 |
 | 5 | Idempotency records not cleaned up | Table grows in long-running environments | Phase 4 |
 | 6 | Circuit breaker resets on worker restart | Short burst of retries after restart | Phase 2 follow-up |
-| 7 | No load-test measurements | Performance claim is structural, not measured | Phase 4 |
+| 7 | Load test on single Docker host only | p95 thresholds met; absolute throughput ceiling lower than production cluster | By design |
 | 8 | Worker shares nopCommerce SQL instance | Not a boundary violation; integration tables are separate | Optional Phase 4 |
 | 9 | Stale/conflict state not shown to customers | Customers see conservative quantity; no UI indicator | Phase 3/4 |

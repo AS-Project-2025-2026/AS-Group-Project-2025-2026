@@ -234,12 +234,10 @@ Row colouring:
 
 ### Conflict demo (QAS 6)
 1. The inventory stub only reports WMS quantities.
-2. To simulate a POS conflict: insert a row directly into `InventoryProjectionRecord` for `SourceSystem='pos'` with a quantity that differs by > `ConflictToleranceUnits`.
-3. Next sync cycle detects the divergence, sets `ConflictFlag = true`, uses the lower quantity.
+2. To simulate a POS conflict: call `POST /stock/report` on the Store POS stub with a quantity that differs by > `ConflictToleranceUnits`.
+3. The Store POS stub publishes a `pos.stock.reported` message; the POS stock consumer writes `SourceSystem='pos'`, detects the divergence, sets `ConflictFlag = true`, and uses the lower quantity.
 4. Operations View → Inventory tab shows the conflicted SKU in red.
 5. After 30 min (or manual SQL update), auto-clear fires.
-
-> **Shortcut for demo:** add a `POST /stock/pos-report` endpoint to the inventory stub that the demo script can call to inject a POS value, avoiding manual SQL.
 
 ---
 
@@ -263,7 +261,7 @@ For demo, set `INVENTORY_STALENESS_THRESHOLD=30` so staleness triggers in 30s.
 | `Product.StockQuantity` is nopCommerce's checkout gate | The checkout pipeline reads `Product.StockQuantity` directly. To enforce the lower-quantity rule for conflicted SKUs, `UpdateProductStockAsync` must write `min(wms, pos)` — not the raw WMS value. |
 | Migration timestamp ordering | Must be `"2026-05-27 00:00:02"` — after `CircuitBreakerStateMigration` (`00:00:01`) and after `OmnichannelIntegrationRecordsMigration` (`2026-05-21 00:00:03`). |
 | `IRepository<InventoryProjectionRecord>` in nopCommerce DI | nopCommerce auto-registers `IRepository<T>` for all `BaseEntity` subclasses — no manual registration needed in `Program.cs` of the web app. For the worker's `WorkerDataService` (Dapper), use raw SQL as done for other tables. |
-| The inventory stub only has one source (WMS) | The POS source doesn't exist as a stub. For QAS 6 demo, either: (a) add `POST /stock/pos-report` to the inventory stub, or (b) insert a row manually via SQL. Option (a) is cleaner for the demo script. |
+| The inventory stub only has one source (WMS) | POS stock is represented by `StorePosStub`, which publishes `pos.stock.reported` messages to RabbitMQ. The remaining gap is real POS vendor integration, not the demo event path. |
 | `InventoryProjectionRecord` vs `Product` staleness visibility | Stale status is in `InventoryProjectionRecord`. The product listing page (`/catalog`) reads `Product.StockQuantity`. If you want stale status on product pages, you'd need to join or expose a flag — **out of scope for the spike**, just show it in the Operations View. |
 | `PendingReconciliation` auto-clear | Only clears `ConflictFlag` when BOTH sources agree AND 30 min have elapsed. If only WMS reports and POS never updates, the flag stays until operator resolves. |
 

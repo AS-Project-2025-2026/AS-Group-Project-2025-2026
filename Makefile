@@ -8,6 +8,7 @@ SQL_CMD       := $(COMPOSE) exec -T nopcommerce_database \
                    -P "nopCommerce_db_password" -d NopCommerce
 WORKER_LOG    := $(COMPOSE) logs --no-log-prefix -f integration_worker
 INV_URL       := http://localhost:5083
+POS_URL       := http://localhost:5084
 
 GREEN  := \033[0;32m
 YELLOW := \033[1;33m
@@ -263,25 +264,21 @@ stale-stop: ## Restore inventory stub — IsStale clears on next sync cycle
 # QAS 6 — Inventory Conflict (POS vs WMS)
 # ─────────────────────────────────────────────────────────────────────────────
 
-conflict-inject: ## Inject a POS stock value that conflicts with WMS via stub API (diff > 2 units)
-	@echo "$(YELLOW)[...]$(NC)  Reporting POS stock via stub API: product 1 = 3 units..."
-	@result=$$(curl -s -X POST $(INV_URL)/stock/pos-report \
+conflict-inject: ## Inject a POS stock value that conflicts with WMS via POS stub event (diff > 2 units)
+	@echo "$(YELLOW)[...]$(NC)  Reporting POS stock via Store POS stub: product 1 = 3 units..."
+	@result=$$(curl -s -X POST $(POS_URL)/stock/report \
 		-H "Content-Type: application/json" \
 		-d '{"productId": 1, "quantity": 3}'); \
 	echo "$$result" | python3 -c "import sys,json; d=json.load(sys.stdin); \
 		print('$(GREEN)[OK]$(NC)    POS reported: productId=' + str(d.get('productId','?')) + \
 		'  posQty=' + str(d.get('posQuantity','?')) + \
-		'  wmsQty=' + str(d.get('wmsQuantity','?')) + \
-		'  conflict=' + str(d.get('conflict','?')))" 2>/dev/null \
-	|| echo "$(RED)[FAIL]$(NC)  Could not reach inventory stub at $(INV_URL)"
-	@echo "       Wait ~10s for next sync cycle to detect conflict"
+		'  routed=' + str(d.get('routed','?')) + \
+		'  correlationId=' + str(d.get('correlationId','?')))" 2>/dev/null \
+	|| echo "$(RED)[FAIL]$(NC)  Could not reach Store POS stub at $(POS_URL)"
+	@echo "       Wait a few seconds for the POS stock consumer to detect conflict"
 	@echo "       Operations → Inventory tab should show ConflictFlag=true (red row)"
 
-conflict-clear: ## Clear POS stock from stub and reset conflict flags in DB
-	@echo "$(YELLOW)[...]$(NC)  Clearing POS stock from stub..."
-	@curl -s -X POST $(INV_URL)/stock/pos-report \
-		-H "Content-Type: application/json" \
-		-d '{"productId": 1, "quantity": 0}' > /dev/null 2>&1 || true
+conflict-clear: ## Clear POS projection rows and reset conflict flags in DB
 	@echo "$(YELLOW)[...]$(NC)  Resetting conflict flags in DB..."
 	@$(SQL_CMD) -Q "\
 		DELETE FROM InventoryProjectionRecord WHERE SourceSystem = 'pos'; \

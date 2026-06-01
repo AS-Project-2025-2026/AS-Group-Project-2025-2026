@@ -109,6 +109,14 @@ services:
     environment:
       STUB_MODE: ${STOREPOS_STUB_MODE:-normal}
       STUB_DELAY_MS: ${STOREPOS_STUB_DELAY_MS:-0}
+      RABBITMQ_MANAGEMENT_URL: http://rabbitmq:15672
+      RABBITMQ_USERNAME: guest
+      RABBITMQ_PASSWORD: guest
+      RABBITMQ_EXCHANGE: verdemart.integration
+      POS_STOCK_ROUTING_KEY: pos.stock.reported
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     healthcheck:
       test:
         [
@@ -151,6 +159,7 @@ services:
       RabbitMq__FulfillmentQueue: fulfillment.requests
       RabbitMq__ShippingQueue: shipping.requests
       RabbitMq__StoreOpsQueue: storeops.requests
+      RabbitMq__PosStockQueue: pos.stock.updates
       Warehouse__BaseUrl: http://warehouse_stub:8080
       Shipping__BaseUrl: http://shipping_stub:8080
       Inventory__BaseUrl: http://inventory_stub:8080

@@ -96,6 +96,23 @@
       "arguments": {}
     },
     {
+      "name": "pos.stock.updates",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "verdemart.integration.dlx",
+        "x-dead-letter-routing-key": "pos.stock.dead"
+      }
+    },
+    {
+      "name": "pos.stock.dead",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
       "name": "customersupport.requests",
       "vhost": "/",
       "durable": true,
@@ -160,6 +177,22 @@
       "destination": "storeops.dead",
       "destination_type": "queue",
       "routing_key": "storeops.dead",
+      "arguments": {}
+    },
+    {
+      "source": "verdemart.integration",
+      "vhost": "/",
+      "destination": "pos.stock.updates",
+      "destination_type": "queue",
+      "routing_key": "pos.stock.reported",
+      "arguments": {}
+    },
+    {
+      "source": "verdemart.integration.dlx",
+      "vhost": "/",
+      "destination": "pos.stock.dead",
+      "destination_type": "queue",
+      "routing_key": "pos.stock.dead",
       "arguments": {}
     },
     {

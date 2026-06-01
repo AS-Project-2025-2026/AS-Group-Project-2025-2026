@@ -144,8 +144,10 @@ All five states visible through admin UI; no direct DB query needed. &
 Admin UI screenshots for each state, status transition log \\
 \hline
 Order-burst responsiveness check &
-Checkout p95 $<$ 2 s; order-status p95 $<$ 1 s; queue depth does not grow unboundedly during test. &
-Latency percentiles, queue depth over time, background worker throughput \\
+Checkout p95 $<$ 2 s; order-status p95 $<$ 1 s; queue depth does not grow unboundedly during test.
+\textbf{Result:} checkout p95 = 74\,ms; order-status p95 = 87\,ms at 25 VUs (5$\times$ load),
+0\% errors over 5{,}072 requests. Both thresholds passed. &
+\path{logs/qas3-load-test-results.json} (k6, 90\,s run, 25 VUs) \\
 \hline
 Integration boundary review &
 Code review and network trace confirm no direct DB connection strings in adapter configs. &

@@ -71,6 +71,7 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddHostedService<FulfillmentConsumerService>();
         services.AddHostedService<ShippingConsumerService>();
         services.AddHostedService<StoreOpsConsumerService>();
+        services.AddHostedService<PosStockConsumerService>();
         services.AddHostedService<InventorySyncService>();
         services.AddHostedService<CustomerSupportConsumerService>();
         services.AddHostedService<MetricsServerService>();

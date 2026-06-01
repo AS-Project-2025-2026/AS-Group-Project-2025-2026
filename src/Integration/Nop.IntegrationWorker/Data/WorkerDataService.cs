@@ -236,6 +236,32 @@ public class WorkerDataService
         return results.ToList();
     }
 
+    public async Task<int> SetInventoryProjectionConflictAsync(
+        int productId, bool conflictFlag, bool pendingReconciliation)
+    {
+        const string sql = """
+            UPDATE InventoryProjectionRecord
+            SET ConflictFlag = @conflictFlag,
+                PendingReconciliation = CASE
+                    WHEN @pendingReconciliation = 1 OR IsStale = 1 THEN 1
+                    ELSE 0
+                END,
+                ResolvedAtUtc = CASE WHEN @conflictFlag = 0 THEN @now ELSE ResolvedAtUtc END,
+                UpdatedAtUtc = @now
+            WHERE ProductId = @productId
+              AND SourceSystem IN ('wms', 'pos')
+            """;
+
+        using var conn = OpenConnection();
+        return await conn.ExecuteAsync(sql, new
+        {
+            productId,
+            conflictFlag,
+            pendingReconciliation,
+            now = DateTime.UtcNow
+        });
+    }
+
     public async Task<List<InventoryProjectionDto>> GetStaleOrConflictedProjectionsAsync()
     {
         const string sql = """

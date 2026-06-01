@@ -73,7 +73,7 @@ Run these in separate terminals alongside `make logs`:
 | QAS 1 — Warehouse failure | `make warehouse-fail` → place order → `make warehouse-recover` |
 | QAS 4 — Shipping outage | `make shipping-fail` → place order → `make shipping-recover` |
 | QAS 2 — Stale inventory | `make stale-start` → wait 30 s → `make stale-stop` |
-| QAS 6 — POS/WMS conflict | `make conflict-inject` → wait 10 s → `make conflict-clear` |
+| QAS 6 — POS/WMS conflict | `make conflict-inject` → wait a few seconds → `make conflict-clear` |
 
 See `docs/evidence/demo-script.md` for the full step-by-step demo guide and
 `Makefile` (`make help`) for all available commands.
@@ -90,6 +90,7 @@ See `docs/evidence/demo-script.md` for the full step-by-step demo guide and
 | Warehouse stub | http://localhost:5081/health | — |
 | Shipping stub | http://localhost:5082/health | — |
 | Inventory stub | http://localhost:5083/health | — |
+| Store POS stub | http://localhost:5084/health | — |
 
 ### Stop / Reset
 

@@ -1,0 +1,32 @@
+{
+  "timestamp": "2026-06-01T15:41:12Z",
+  "tool": "k6 via grafana/k6:latest Docker image",
+  "scenario": "QAS 3 — Performance during Omnichannel Order Bursts",
+  "QAS 3 Load Test Results": {
+    "Test duration": "90s (20s ramp + 60s hold + 10s ramp-down)",
+    "Virtual users (peak)": "25 (5x baseline of 5)",
+    "Total requests": 5072,
+    "Error rate": "0.00%"
+  },
+  "Checkout path (QAS 3 target: p95 < 2000ms)": {
+    "p50": "14ms",
+    "p90": "47ms",
+    "p95": "74ms",
+    "p99": "155ms",
+    "max": "731ms",
+    "PASS": "YES"
+  },
+  "Order-status path (QAS 3 target: p95 < 1000ms)": {
+    "p50": "12ms",
+    "p90": "45ms",
+    "p95": "87ms",
+    "p99": "132ms",
+    "max": "202ms",
+    "PASS": "YES"
+  },
+  "Catalog browsing": {
+    "p50": "50ms",
+    "p95": "173ms"
+  },
+  "interpretation": "Both QAS 3 targets passed with large margin. Checkout p95=74ms vs 2000ms target (27x headroom). Order-status p95=87ms vs 1000ms target (11x headroom). The async design (no synchronous warehouse/shipping calls in checkout path) is confirmed to work under 5x load on a single Docker host."
+}

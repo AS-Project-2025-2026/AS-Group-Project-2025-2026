@@ -69,9 +69,10 @@ Yes. After 30~s without a confirmed stock update, \texttt{IsStale} is set on the
 rows. \\
 \hline
 Is a POS--WMS inventory conflict detected and the checkout quantity bounded? &
-POS stock injected via \texttt{POST /stock/pos-report} with a quantity diverging from the
-WMS value by more than the configured tolerance. &
-Yes. The worker detects the divergence on the next sync cycle, sets \texttt{ConflictFlag},
+POS stock reported through the Store POS stub's \texttt{POST /stock/report} endpoint, which
+publishes a \texttt{pos.stock.reported} message with a quantity diverging from the WMS value
+by more than the configured tolerance. &
+Yes. The POS stock consumer detects the divergence, sets \texttt{ConflictFlag},
 records \texttt{PendingReconciliation}, and writes the lower quantity to
 \texttt{Product.StockQuantity} to prevent overselling. \\
 \hline
@@ -106,12 +107,11 @@ is detected within the configured 30-second threshold in the demo environment. C
 conflicts are detected within one sync cycle (10~seconds in the demo environment) and the
 conservative lower quantity is immediately applied to the checkout stock gate.
 
-\textbf{The runtime evidence exercises the real WMS/POS payload shape.} During evidence
-capture, the inventory stub returned WMS stock as \texttt{wmsQuantity} and optional POS stock
-as \texttt{posQuantity}. The Integration Worker now records the corresponding
-\texttt{SourceSystem} values instead of assuming a single \texttt{quantity} field, so the
-staleness and conflict evidence is produced from the same payload shape used by the demo
-stubs.
+\textbf{The runtime evidence exercises separate WMS and POS source paths.} During evidence
+capture, the inventory stub returns WMS stock, while the Store POS stub publishes POS stock
+reports to RabbitMQ. The Integration Worker records the corresponding \texttt{SourceSystem}
+values instead of assuming a single \texttt{quantity} field, so the staleness and conflict
+evidence is produced from the same source separation used by the demo stubs.
 
 \textbf{The nopCommerce seams identified in the checkpoint inspection are correct.} The
 \texttt{PlaceOrderAsync} method in \texttt{OrderProcessingService} provides the atomic
@@ -127,9 +127,9 @@ The following items were identified as out of scope for the spike and are record
 limitations in \texttt{docs/evidence/known-limitations.md}:
 
 \begin{itemize}
-    \item The POS source has no autonomous event emitter. Conflict detection is triggered
-    via \texttt{POST /stock/pos-report} on the inventory stub, which simulates a POS stock
-    report without a full POS lifecycle.
+    \item The POS source is still a coursework stub rather than a real vendor integration.
+    Conflict detection is triggered via \texttt{POST /stock/report} on the Store POS stub,
+    which publishes an asynchronous POS stock event without reproducing a full POS lifecycle.
     \item Circuit breaker state is not persisted across Integration Worker restarts. On
     restart the registry initialises to \texttt{Closed} regardless of the last recorded
     state.
@@ -138,9 +138,15 @@ limitations in \texttt{docs/evidence/known-limitations.md}:
     \item The \texttt{IsStale} and \texttt{ConflictFlag} states are surfaced in the Operations
     View but are not exposed on the customer-facing product pages. Customers see the
     conservative stock quantity but not an explicit freshness indicator.
-    \item Performance measurements under sustained load (QAS~3 response measures) have not
-    been collected. The decoupling is structural and visible in the code; the numeric
-    validation requires a dedicated load-testing environment.
+    \item Performance measurements under sustained load (QAS~3 response measures) have been
+    collected using k6 at 25 virtual users (5$\times$ the baseline of 5 concurrent users).
+    Results are recorded in \texttt{docs/evidence/logs/qas3-load-test-results.json}.
+    Checkout p95 was 74\,ms (target: $<$2000\,ms) and order-status p95 was 87\,ms
+    (target: $<$1000\,ms) over 5{,}072 requests with a 0\% error rate.
+    Both QAS~3 thresholds passed by a large margin, confirming that the async design keeps
+    the customer path fast under peak load. The test was run on a single Docker host, which
+    is a constraint on absolute throughput but not on the latency argument: the structural
+    decoupling (no synchronous adapter calls in the checkout path) is what drives the result.
 \end{itemize}
 
 \section{Evidence}
@@ -201,6 +207,10 @@ POS and WMS projection rows show \texttt{ConflictFlag = 1} and the lower checkou
 \hline
 Warehouse recovery log & \path{logs/warehouse-recovery.txt} &
 Half-open probe and circuit close events after the warehouse stub recovers. \\
+\hline
+QAS~3 load test & \path{logs/qas3-load-test-results.json} &
+k6 results at 25 VUs (5$\times$ load): checkout p95 = 74\,ms, order-status p95 = 87\,ms,
+0\% errors over 5{,}072 requests. Both QAS~3 thresholds passed. \\
 \hline
 \end{tabular}
 \end{center}
