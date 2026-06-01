@@ -1,0 +1,2 @@
+      Dead-letter created. Adapter=warehouse CorrelationId=order-7 IdempotencyKey=2603f173-e184-4e52-81fb-fbb162903991 OrderId=7 FailureReason=Circuit breaker OPEN for adapter 'warehouse', next probe at 2026-06-01T14:27:53.0167996Z
+      Circuit breaker HALF-OPEN probe. Adapter=warehouse CorrelationId=order-8 CircuitState=HalfOpen

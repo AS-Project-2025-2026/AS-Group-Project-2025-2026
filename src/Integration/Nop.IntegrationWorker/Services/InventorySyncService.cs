@@ -66,7 +66,7 @@ public class InventorySyncService : BackgroundService
         foreach (var item in items)
         {
             var others = await _data.GetProjectionsByProductAsync(item.ProductId);
-            var otherSource = others.FirstOrDefault(p => p.SourceSystem != _opts.SourceSystem);
+            var otherSource = others.FirstOrDefault(p => p.SourceSystem != item.SourceSystem);
 
             bool conflictFlag = false;
             bool pendingReconciliation = false;
@@ -82,14 +82,14 @@ public class InventorySyncService : BackgroundService
                     checkoutQty = Math.Min(item.Quantity, otherSource.ReportedQuantity);
                     _logger.LogWarning(
                         "Inventory conflict on ProductId={ProductId}: {Source}={Qty} vs {OtherSource}={OtherQty} (diff={Diff}, tolerance={Tolerance}) — checkout capped at {CheckoutQty}",
-                        item.ProductId, _opts.SourceSystem, item.Quantity,
+                        item.ProductId, item.SourceSystem, item.Quantity,
                         otherSource.SourceSystem, otherSource.ReportedQuantity,
                         diff, _opts.ConflictToleranceUnits, checkoutQty);
                 }
             }
 
             await _data.UpsertInventoryProjectionAsync(
-                item.ProductId, _opts.SourceSystem, item.Quantity,
+                item.ProductId, item.SourceSystem, item.Quantity,
                 isStale: false, conflictFlag, pendingReconciliation);
 
             var rows = await _data.UpdateProductStockAsync(item.ProductId, checkoutQty);

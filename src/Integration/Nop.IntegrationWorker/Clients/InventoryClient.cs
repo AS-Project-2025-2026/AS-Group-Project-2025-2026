@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Nop.IntegrationWorker.Clients;
 
-public record InventoryStockItem(int ProductId, int Quantity);
+public record InventoryStockItem(int ProductId, int Quantity, string SourceSystem);
 
 public class InventoryClient
 {
@@ -40,11 +40,19 @@ public class InventoryClient
         var result = new List<InventoryStockItem>();
         foreach (var item in products.EnumerateArray())
         {
-            if (item.TryGetProperty("productId", out var pid) &&
-                item.TryGetProperty("quantity", out var qty))
-            {
-                result.Add(new InventoryStockItem(pid.GetInt32(), qty.GetInt32()));
-            }
+            if (!item.TryGetProperty("productId", out var pid))
+                continue;
+
+            var productId = pid.GetInt32();
+
+            if (item.TryGetProperty("quantity", out var qty))
+                result.Add(new InventoryStockItem(productId, qty.GetInt32(), "wms"));
+
+            if (item.TryGetProperty("wmsQuantity", out var wmsQty))
+                result.Add(new InventoryStockItem(productId, wmsQty.GetInt32(), "wms"));
+
+            if (item.TryGetProperty("posQuantity", out var posQty))
+                result.Add(new InventoryStockItem(productId, posQty.GetInt32(), "pos"));
         }
         return result;
     }

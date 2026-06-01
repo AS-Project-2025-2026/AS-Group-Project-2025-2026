@@ -234,6 +234,19 @@ demo-degraded: ## Populate Operations View with failures, retries, dead letters 
 # ─────────────────────────────────────────────────────────────────────────────
 
 stale-start: ## Cut inventory stub (unavailable) — staleness triggers in ~30s
+	@echo "$(YELLOW)[...]$(NC)  Priming inventory projections from healthy stub..."
+	@INVENTORY_STUB_MODE=normal $(COMPOSE) up -d --no-deps --no-build inventory_stub > /dev/null
+	@rows=0; \
+	for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do \
+		rows=$$($(SQL_CMD) -h -1 -W -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM InventoryProjectionRecord;" 2>/dev/null | tr -dc '0-9'); \
+		if [ "$${rows:-0}" -gt 0 ]; then break; fi; \
+		sleep 2; \
+	done; \
+	if [ "$${rows:-0}" -eq 0 ]; then \
+		echo "$(RED)[FAIL]$(NC)  InventoryProjectionRecord is still empty. Rebuild/restart the worker with: make up"; \
+		exit 1; \
+	fi; \
+	echo "$(GREEN)[OK]$(NC)    Inventory projections ready ($$rows rows)"
 	@echo "$(YELLOW)[...]$(NC)  Setting inventory stub to unavailable..."
 	INVENTORY_STUB_MODE=unavailable $(COMPOSE) up -d --no-deps --no-build inventory_stub
 	@echo "$(GREEN)[OK]$(NC)    Inventory stub is now unavailable"
