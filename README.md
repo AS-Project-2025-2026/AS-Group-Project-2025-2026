@@ -1,192 +1,290 @@
-﻿# AS Group Project 2025-2026
+# nopCommerce: Omnichannel Commerce Core
 
-This repository contains the Software Architectures group project for the
-architectural evolution of nopCommerce. The work studies how nopCommerce can
-evolve from an online storefront into an omnichannel commerce core for the
-VerdeMart Retail scenario.
+Architectural evolution of [nopCommerce](https://www.nopcommerce.com/) towards an omnichannel commerce platform, developed as part of the Software Architectures group assignment.
 
-The codebase is based on nopCommerce and keeps the original application
-structure, while the project documentation records the architectural analysis,
-target architecture, decisions, risks, roadmap, and feasibility work.
+**Scenario C — Omnichannel Commerce Core**: VerdeMart Retail began with nopCommerce as a web storefront. The business now needs web sales, warehouse execution, shipping, store operations, and customer visibility to work together — with nopCommerce becoming the commerce core of a wider enterprise ecosystem.
 
-## Quick Start
+---
 
-**Prerequisites:** Docker and Docker Compose installed.
+## Table of Contents
 
-### 1. Start the environment
+- [Repository Structure](#repository-structure)
+- [Documentation](#documentation)
+  - [Architecture Report](#architecture-report)
+  - [Architecture Decision Records](#architecture-decision-records)
+  - [Evidence Pack](#evidence-pack)
+- [Demo Setup](#demo-setup)
+  - [Prerequisites](#prerequisites)
+  - [Step 1: Start the environment](#step-1-start-the-environment)
+  - [Step 2: Install nopCommerce](#step-2-install-nopcommerce-first-run-only)
+  - [Step 3: Place a real order](#step-3-place-a-real-order)
+  - [Step 4: Warehouse failure scenario](#step-4-warehouse-failure--circuit-breaker--recovery)
+  - [Step 5: Shipping dead letter scenario](#step-5-shipping-outage--dead-letter--requeue)
+  - [Step 6: Inventory scenarios](#step-6-inventory-scenarios)
+  - [Available Commands](#available-commands)
+  - [Useful URLs](#useful-urls)
+- [Authors](#authors)
+- [Original nopCommerce](#original-nopcommerce)
+
+---
+
+## Repository Structure
+
+```
+AS-Group-Project-2025-2026/
+├── docs/
+│   ├── adr/                                            # Architecture Decision Records
+│   │   ├── README.md                                   # ADR index
+│   │   ├── 001-asynchronous-fulfillment-propagation.md # ADR 1 — Async fulfillment
+│   │   ├── 002-transactional-outbox.md                 # ADR 2 — Transactional outbox
+│   │   ├── 003-adapter-boundaries-no-shared-db.md      # ADR 3 — Adapter pattern
+│   │   ├── 004-retain-nopcommerce-monolith.md          # ADR 4 — Monolith retained
+│   │   ├── 005-idempotency-key-strategy.md             # ADR 5 — Idempotency keys
+│   │   ├── 006-retry-circuit-breaker.md                # ADR 6 — Retry + circuit breaker
+│   │   ├── 007-dead-letter-operator-intervention.md    # ADR 7 — Dead-letter queue
+│   │   └── forces-matrix.md                            # Architectural forces comparison
+│   ├── evidence/                                       # Runtime evidence pack
+│   │   ├── screenshots/                                # Annotated runtime screenshots
+│   │   ├── logs/                                       # Worker log excerpts + load test results
+│   │   ├── known-limitations.md                        # Explicit scope cuts and limitations
+│   │   ├── load-test.js                                # k6 QAS 3 load test script
+│   │   └── presentation-demo-script.md                 # Presentation demo guide
+│   ├── report/                                         # Architecture report (LaTeX source + PDF)
+│   │   ├── chapters/                                   # Report chapters (01-10)
+│   │   ├── images/                                     # Architecture diagrams and figures
+│   │   ├── report.tex                                  # Main LaTeX file
+│   │   └── report.pdf                                  # Compiled report
+│   ├── architecture-framework.md                       # ADD framework application
+│   └── observability-plan.md                           # Grafana / Prometheus observability plan
+├── src/
+│   ├── Integration/
+│   │   └── Nop.IntegrationWorker/                      # Integration Worker (independently deployable)
+│   ├── Stubs/                                          # Surrogate adapter stubs
+│   │   ├── WarehouseStub/                              # WMS stub (normal / slow / failed modes)
+│   │   ├── ShippingStub/                               # Shipping stub (normal / slow / outage modes)
+│   │   ├── InventoryStub/                              # Inventory/WMS stock stub
+│   │   ├── StorePosStub/                               # Store POS stub
+│   │   └── CustomerSupportStub/                        # Customer support stub
+│   ├── Libraries/                                      # nopCommerce core libraries
+│   ├── Plugins/                                        # nopCommerce plugins
+│   ├── Presentation/                                   # nopCommerce web application
+│   └── Tests/                                          # nopCommerce test projects
+├── docker/                                             # Grafana, Prometheus, Loki provisioning
+├── docker-compose.yml                                  # Full environment (nopCommerce + stubs + observability)
+├── Makefile                                            # All demo commands (run `make help`)
+└── README.md
+```
+
+---
+
+## Documentation
+
+### Architecture Report
+
+The full architecture report is at [`docs/report/report.pdf`](docs/report/report.pdf) and covers:
+
+| Chapter | Content |
+|---|---|
+| 1 — Introduction and Scenario | Scenario C choice, business drivers, surrounding systems |
+| 2 — Current-State Analysis | How baseline nopCommerce supports or conflicts with the scenario |
+| 3 — Domain and Bounded Contexts | Relevant subdomains, bounded contexts, data ownership |
+| 4 — Quality Attribute Scenarios | 6 QAS with stimulus/response/measure (availability, consistency, performance, recoverability, modifiability) |
+| 5 — Architectural Approach | ADD framework selection and application |
+| 6 — Target Architecture | Components, data ownership, sync vs async interactions, diagrams |
+| 7 — Architectural Decisions | ADR 1–7 with rejected alternatives |
+| 8 — Risk and Validation Plan | Main risks and validation evidence |
+| 9 — Evolution Roadmap | Phase-by-phase implementation path |
+| 10 — Feasibility Spike | Runtime evidence for all 8 tested spike questions |
+
+Supporting diagrams:
+
+| Diagram | File |
+|---|---|
+| Target architecture | [`docs/report/images/target-architecture-scenario-c.png`](docs/report/images/target-architecture-scenario-c.png) |
+| Current-state architecture | [`docs/report/images/current-implementation-scenario-c.png`](docs/report/images/current-implementation-scenario-c.png) |
+| Bounded context model | [`docs/report/images/boundary_model.png`](docs/report/images/boundary_model.png) |
+| Sequence diagram — warehouse failure | [`docs/report/images/sequence-warehouse-failure.png`](docs/report/images/sequence-warehouse-failure.png) |
+| Evolution roadmap | [`docs/report/images/evolution-roadmap.png`](docs/report/images/evolution-roadmap.png) |
+
+### Architecture Decision Records
+
+Standalone ADR files in [`docs/adr/`](docs/adr/):
+
+| ADR | Decision | QAS |
+|---|---|---|
+| [ADR 1](docs/adr/001-asynchronous-fulfillment-propagation.md) | Asynchronous fulfillment propagation | QAS 1, QAS 4 |
+| [ADR 2](docs/adr/002-transactional-outbox.md) | Transactional outbox for durable task publishing | QAS 1, QAS 4 |
+| [ADR 3](docs/adr/003-adapter-boundaries-no-shared-db.md) | Adapter pattern — no shared database across external boundaries | QAS 5 |
+| [ADR 4](docs/adr/004-retain-nopcommerce-monolith.md) | nopCommerce monolith retained as the commerce core | QAS 3 |
+| [ADR 5](docs/adr/005-idempotency-key-strategy.md) | Idempotency key strategy for integration messages | QAS 1, QAS 4 |
+| [ADR 6](docs/adr/006-retry-circuit-breaker.md) | Retry policy with exponential backoff and circuit breaker | QAS 1, QAS 4 |
+| [ADR 7](docs/adr/007-dead-letter-operator-intervention.md) | Dead-letter queue and operator intervention model | QAS 1, QAS 4 |
+
+### Evidence Pack
+
+Runtime evidence in [`docs/evidence/`](docs/evidence/):
+
+| File | Description |
+|---|---|
+| [`screenshots/`](docs/evidence/screenshots/) | Annotated screenshots: normal flow, warehouse failure, circuit breaker, dead letter, requeue, inventory staleness and conflict |
+| [`logs/warehouse-failure.txt`](docs/evidence/logs/warehouse-failure.txt) | Retry attempts, exponential delay, circuit breaker open/close |
+| [`logs/warehouse-recovery.txt`](docs/evidence/logs/warehouse-recovery.txt) | Half-open probe and circuit close after recovery |
+| [`logs/checkout-not-blocked.txt`](docs/evidence/logs/checkout-not-blocked.txt) | Checkout completing while warehouse integration is asynchronous |
+| [`logs/conflict-evidence.txt`](docs/evidence/logs/conflict-evidence.txt) | POS vs WMS conflict detection, ConflictFlag, checkout bounded |
+| [`logs/staleness-evidence.txt`](docs/evidence/logs/staleness-evidence.txt) | IsStale set after threshold exceeded |
+| [`logs/qas3-load-test-results.json`](docs/evidence/logs/qas3-load-test-results.json) | k6 load test: checkout p95 = 74 ms, order-status p95 = 87 ms at 25 VUs — both QAS 3 thresholds passed |
+| [`known-limitations.md`](docs/evidence/known-limitations.md) | Explicit scope cuts, known limitations, and phase roadmap |
+| [`load-test.js`](docs/evidence/load-test.js) | k6 script to reproduce the QAS 3 load test |
+
+---
+
+## Demo Setup
+
+### Prerequisites
+
+- Docker and Docker Compose
+- `make` (standard on Linux/macOS)
+
+### Step 1: Start the environment
 
 ```bash
 make up
 ```
 
-This builds all containers, writes a `.env` with accelerated demo parameters
-(staleness threshold 30 s, circuit breaker opens after 3 failures), and waits
-until nopCommerce and SQL Server are ready.
+Builds all containers and starts nopCommerce, the Integration Worker, all stubs (warehouse, shipping, inventory, POS, customer support), RabbitMQ, Prometheus, Loki, and Grafana. First run takes ~5 minutes to build; subsequent runs are faster.
 
-First run takes ~5 minutes to build. Subsequent runs are faster.
+Accelerated demo parameters are applied automatically:
+- Circuit breaker opens after **3 failures** (production default: 5)
+- Circuit breaker cooldown: **30 s** (production default: 300 s)
+- Staleness threshold: **30 s** (production default: 120 s)
 
-### 2. Install nopCommerce (first run only)
+### Step 2: Install nopCommerce (first run only)
 
 ```bash
 ./install-nopcommerce.sh
 ```
 
-This installs nopCommerce with sample data, creates the admin account
-(`admin@verdemart.com` / `Admin1234!`), and runs the database migrations that
-create the integration tables (outbox, dead-letter, circuit breaker, inventory
-projection).
+Installs nopCommerce with sample data, creates the admin account, and runs the database migrations that create the integration tables (outbox, dead-letter, circuit breaker, inventory projection).
 
-### 3. Place a real order
+Admin credentials: `admin@verdemart.com` / `Admin1234!`
+
+### Step 3: Place a real order
 
 ```bash
 make order
 ```
 
-This logs in, adds a product to the cart, and completes checkout via the
-nopCommerce one-page checkout. The `OrderProcessingService` creates the order
-and writes an outbox record atomically. The Integration Worker picks it up
-within seconds and dispatches it to the warehouse and shipping stubs via
-RabbitMQ.
+Logs in, adds a product to cart, and completes checkout. The `OrderProcessingService` writes the order and an outbox record atomically. The Integration Worker picks it up within seconds and dispatches it to the warehouse and shipping stubs via RabbitMQ.
 
-### 4. Watch the worker process it
+Watch it happen:
 
 ```bash
 make logs
 ```
 
-### 5. Open the Operations View
+Then open the Operations View at `http://localhost:8080/Admin/Operations/List` — the outbox record should show `Published` and all circuit breakers `Closed`.
 
-[http://localhost:8080/Admin/Operations/List](http://localhost:8080/Admin/Operations/List)
+### Step 4: Warehouse failure → circuit breaker → recovery
 
-Shows outbox records, dead letters, circuit breaker state, and inventory
-projection in real time.
+```bash
+make warehouse-fail      # set warehouse stub to failed mode
+make order               # place an order while it's down
+make logs                # watch retries, then circuit breaker OPENED
+make warehouse-recover   # restore — circuit probes and closes automatically
+```
 
-### 6. Open observability dashboards
+Expected log sequence:
+- `Adapter call failed` → `Retry scheduled` (delay doubles each attempt: 2s → 4s → 8s...)
+- After 3 failures: `Circuit breaker OPENED`
+- `Circuit breaker OPEN — skipping call`
+- After cooldown: `Circuit breaker HALF-OPEN probe` → `Adapter call succeeded` → `Circuit breaker CLOSED`
 
-| Tool | URL | Credentials |
-|---|---|---|
-| Grafana | [http://localhost:3000](http://localhost:3000) | admin / admin |
-| Prometheus | [http://localhost:9090](http://localhost:9090) | — |
-| Loki | internal Compose service (`loki:3100`) | — |
+Operations View shows the outbox record moving from `Retrying` → `Published` automatically.
+Grafana (`http://localhost:3000`) shows the failure spike and recovery on the **Resilience** row.
 
-Grafana is provisioned with the VerdeMart architectural-drivers dashboard. See
-[`docs/observability-plan.md`](docs/observability-plan.md) for the metrics and
-demo workflow.
+### Step 5: Shipping outage → dead letter → requeue
 
----
+```bash
+make shipping-fail       # set shipping stub to outage mode
+make order               # place an order
+make logs                # watch retries exhaust — Dead-letter created
+make shipping-recover    # restore shipping stub
+```
 
-### Demo scenarios
+Then open the Operations View → **Dead Letters** tab and click **Requeue**. The worker picks it up and dispatches it on the next cycle.
 
-Run these in separate terminals alongside `make logs`:
+### Step 6: Inventory scenarios
 
-| Scenario | Commands |
-|---|---|
-| Continuous orders | `make order-loop` |
-| QAS 1 — Warehouse failure | `make warehouse-fail` → place order → `make warehouse-recover` |
-| QAS 4 — Shipping outage | `make shipping-fail` → place order → `make shipping-recover` |
-| QAS 2 — Stale inventory | `make stale-start` → wait 30 s → `make stale-stop` |
-| QAS 6 — POS/WMS conflict | `make conflict-inject` → wait a few seconds → `make conflict-clear` |
+**Staleness (QAS 2):**
 
-See `docs/evidence/demo-script.md` for the full step-by-step demo guide and
-`Makefile` (`make help`) for all available commands.
+```bash
+make stale-start    # cuts inventory stub — staleness triggers in ~30 s
+make stale-stop     # restores stub — IsStale clears on next sync cycle
+```
 
----
+**POS/WMS conflict (QAS 6):**
 
-### URLs
+```bash
+make conflict-inject   # reports POS stock diverging >2 units from WMS
+                       # wait ~15 s — Operations View → Inventory tab shows ConflictFlag = true
+make conflict-clear    # clears conflict
+```
+
+### Available Commands
+
+```bash
+make help             # list all available commands
+make up               # start full environment
+make down             # stop containers, keep data
+make reset            # full reset — stop and delete all volumes
+make logs             # follow Integration Worker logs
+make status           # health status of all services
+make order            # place one real order
+make order-burst      # place 5 orders in sequence
+make demo-healthy     # populate Operations View with all-green state
+make demo-degraded    # populate Operations View with failures and dead letters
+make warehouse-fail   # set warehouse stub to failed mode
+make warehouse-recover # restore warehouse stub
+make shipping-fail    # set shipping stub to outage mode
+make shipping-recover # restore shipping stub
+make stale-start      # trigger inventory staleness
+make stale-stop       # restore inventory stub
+make conflict-inject  # inject POS/WMS stock conflict
+make conflict-clear   # clear conflict
+make db-outbox        # show last 10 outbox records
+make db-deadletter    # show last 10 dead-letter records
+make db-inventory     # show all inventory projection records
+make db-cb            # show circuit breaker states
+```
+
+### Useful URLs
 
 | Service | URL | Credentials |
 |---|---|---|
-| nopCommerce storefront | http://localhost:8080 | — |
-| Admin / Operations View | http://localhost:8080/Admin/Operations/List | admin@verdemart.com / Admin1234! |
+| VerdeMart storefront | http://localhost:8080 | — |
+| Operations View | http://localhost:8080/Admin/Operations/List | admin@verdemart.com / Admin1234! |
 | RabbitMQ management | http://localhost:15672 | guest / guest |
-| Grafana | http://localhost:3000 | admin / admin |
+| Grafana dashboards | http://localhost:3000 | admin / admin |
 | Prometheus | http://localhost:9090 | — |
 | Warehouse stub | http://localhost:5081/health | — |
 | Shipping stub | http://localhost:5082/health | — |
 | Inventory stub | http://localhost:5083/health | — |
 | Store POS stub | http://localhost:5084/health | — |
-
-### Stop / Reset
-
-```bash
-make down        # stop containers, keep data
-make reset       # stop containers and delete all volumes (full reset)
-```
+| Customer support stub | http://localhost:5085/health | — |
 
 ---
 
 ## Authors
 
-Group 107:
+Group — Software Architectures 2025/2026:
 
 - Afonso Ferreira, 113480
 - Tomás Brás, 112665
 - Hugo Ribeiro, 113402
 - Rodrigo Abreu, 113626
 
-## Project Structure
+---
 
-```text
-.
-├── docs/
-│   ├── Assignment 2 — Architectural Evolution of nopCommerce.pdf
-│   ├── Group Assignment - Final Assignment.pdf
-│   └── report/
-│       ├── chapters/
-│       ├── diagrams/
-│       ├── images/
-│       ├── report.tex
-│       └── report.pdf
-├── src/
-│   ├── Build/
-│   ├── Libraries/
-│   ├── Plugins/
-│   ├── Presentation/
-│   ├── Tests/
-│   └── NopCommerce.sln
-├── upgradescripts/
-├── docker-compose.yml
-├── postgresql-docker-compose.yml
-├── mysql-docker-compose.yml
-├── Dockerfile
-├── CONTRIBUTING.md
-├── ISSUE_TEMPLATE.md
-├── LICENSE.md
-└── README.md
-```
+## Original nopCommerce
 
-## Main Directories
-
-- `docs/` contains the assignment PDFs and the group report material.
-- `docs/report/` contains the LaTeX report source, diagrams, images, compiled
-  report PDF, and the `compile.sh` helper script.
-- `src/` contains the nopCommerce solution and application source code.
-- `src/Libraries/` contains the core nopCommerce libraries, including
-  `Nop.Core`, `Nop.Data`, and `Nop.Services`.
-- `src/Presentation/` contains the web application and web framework projects.
-- `src/Plugins/` contains nopCommerce plugins, including payment, shipping,
-  tax, search, authentication, and miscellaneous integrations.
-- `src/Tests/` contains the test project for the nopCommerce solution.
-- `upgradescripts/` contains database upgrade scripts for historical
-  nopCommerce version migrations.
-- The Docker files at the repository root provide container-based setup options
-  for the application and supported databases.
-
-## Documentation
-
-The `docs` folder is the main place for project documentation:
-
-- Assignment briefs are stored directly under `docs/`.
-- The architectural report is stored under `docs/report/`.
-- Report chapters are split under `docs/report/chapters/`.
-- Architecture diagrams are stored under `docs/report/diagrams/`.
-- Rendered or supporting images are stored under `docs/report/images/`.
-- The compiled report is available at `docs/report/report.pdf`.
-- Standalone ADRs are stored under [`docs/adr/`](docs/adr/), including a
-  cross-decision [forces matrix](docs/adr/forces-matrix.md).
-- Runtime evidence is stored under [`docs/evidence/`](docs/evidence/), including
-  screenshots, logs, capture guides, and known limitations.
-- The chosen architecture framework and how it was applied is summarized in
-  [`docs/architecture-framework.md`](docs/architecture-framework.md).
-- Observability notes are stored in
-  [`docs/observability-plan.md`](docs/observability-plan.md).
+This repository is based on [nopSolutions/nopCommerce](https://github.com/nopSolutions/nopCommerce). nopCommerce is a free, open-source ASP.NET Core eCommerce platform. See the original project for full platform documentation.
