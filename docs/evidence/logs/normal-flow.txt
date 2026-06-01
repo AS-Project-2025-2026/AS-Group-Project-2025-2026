@@ -1,0 +1,20 @@
+info: Nop.IntegrationWorker.Services.OutboxPollingService[0]
+      OutboxPollingService started (interval=5s, batch=20)
+fail: Nop.IntegrationWorker.Services.OutboxPollingService[0]
+         at Nop.IntegrationWorker.Data.WorkerDataService.GetPendingOutboxRecordsAsync(Int32 batchSize) in /src/Integration/Nop.IntegrationWorker/Data/WorkerDataService.cs:line 30
+         at Nop.IntegrationWorker.Services.OutboxPollingService.PollOnceAsync(CancellationToken ct) in /src/Integration/Nop.IntegrationWorker/Services/OutboxPollingService.cs:line 65
+         at Nop.IntegrationWorker.Services.OutboxPollingService.ExecuteAsync(CancellationToken stoppingToken) in /src/Integration/Nop.IntegrationWorker/Services/OutboxPollingService.cs:line 46
+fail: Nop.IntegrationWorker.Services.OutboxPollingService[0]
+         at Nop.IntegrationWorker.Data.WorkerDataService.GetPendingOutboxRecordsAsync(Int32 batchSize) in /src/Integration/Nop.IntegrationWorker/Data/WorkerDataService.cs:line 30
+         at Nop.IntegrationWorker.Services.OutboxPollingService.PollOnceAsync(CancellationToken ct) in /src/Integration/Nop.IntegrationWorker/Services/OutboxPollingService.cs:line 65
+         at Nop.IntegrationWorker.Services.OutboxPollingService.ExecuteAsync(CancellationToken stoppingToken) in /src/Integration/Nop.IntegrationWorker/Services/OutboxPollingService.cs:line 46
+fail: Nop.IntegrationWorker.Services.OutboxPollingService[0]
+         at Nop.IntegrationWorker.Data.WorkerDataService.GetPendingOutboxRecordsAsync(Int32 batchSize) in /src/Integration/Nop.IntegrationWorker/Data/WorkerDataService.cs:line 30
+         at Nop.IntegrationWorker.Services.OutboxPollingService.PollOnceAsync(CancellationToken ct) in /src/Integration/Nop.IntegrationWorker/Services/OutboxPollingService.cs:line 65
+         at Nop.IntegrationWorker.Services.OutboxPollingService.ExecuteAsync(CancellationToken stoppingToken) in /src/Integration/Nop.IntegrationWorker/Services/OutboxPollingService.cs:line 46
+fail: Nop.IntegrationWorker.Services.OutboxPollingService[0]
+         at Nop.IntegrationWorker.Data.WorkerDataService.GetPendingOutboxRecordsAsync(Int32 batchSize) in /src/Integration/Nop.IntegrationWorker/Data/WorkerDataService.cs:line 30
+         at Nop.IntegrationWorker.Services.OutboxPollingService.PollOnceAsync(CancellationToken ct) in /src/Integration/Nop.IntegrationWorker/Services/OutboxPollingService.cs:line 65
+         at Nop.IntegrationWorker.Services.OutboxPollingService.ExecuteAsync(CancellationToken stoppingToken) in /src/Integration/Nop.IntegrationWorker/Services/OutboxPollingService.cs:line 46
+fail: Nop.IntegrationWorker.Services.OutboxPollingService[0]
+         at Nop.IntegrationWorker.Data.WorkerDataService.GetPendingOutboxRecordsAsync(Int32 batchSize) in /src/Integration/Nop.IntegrationWorker/Data/WorkerDataService.cs:line 30
