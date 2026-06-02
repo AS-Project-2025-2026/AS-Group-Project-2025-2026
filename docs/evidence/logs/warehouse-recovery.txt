@@ -1,2 +1,11 @@
       Dead-letter created. Adapter=warehouse CorrelationId=order-7 IdempotencyKey=2603f173-e184-4e52-81fb-fbb162903991 OrderId=7 FailureReason=Circuit breaker OPEN for adapter 'warehouse', next probe at 2026-06-01T14:27:53.0167996Z
       Circuit breaker HALF-OPEN probe. Adapter=warehouse CorrelationId=order-8 CircuitState=HalfOpen
+      Adapter call started. Adapter=warehouse CorrelationId=order-8 IdempotencyKey=2603f173-e184-4e52-81fb-fbb162903991 OutboxRecordId=(null) RetryAttempt=3 CircuitState=HalfOpen
+      Warehouse /fulfillment → 200: {"status":"fulfilled","correlationId":"order-8"}
+      Adapter call succeeded. Adapter=warehouse CorrelationId=order-8 IdempotencyKey=2603f173-e184-4e52-81fb-fbb162903991 OutboxRecordId=(null) RetryAttempt=3 CircuitState=HalfOpen
+      Circuit breaker CLOSED. Adapter=warehouse ConsecutiveFailures=0 CircuitState=Closed
+      Outbox picked up. Adapter=warehouse CorrelationId=order-8 IdempotencyKey=2603f173-e184-4e52-81fb-fbb162903991 OutboxRecordId=8 OrderId=8
+      Adapter call started. Adapter=warehouse CorrelationId=order-8 IdempotencyKey=2603f173-e184-4e52-81fb-fbb162903991 OutboxRecordId=8 RetryAttempt=0 CircuitState=Closed
+      Warehouse /fulfillment → 200: {"status":"fulfilled","correlationId":"order-8"}
+      Adapter call succeeded. Adapter=warehouse CorrelationId=order-8 IdempotencyKey=2603f173-e184-4e52-81fb-fbb162903991 OutboxRecordId=8 RetryAttempt=0 CircuitState=Closed
+      Outbox record published. Adapter=warehouse CorrelationId=order-8 OutboxRecordId=8 Status=Published

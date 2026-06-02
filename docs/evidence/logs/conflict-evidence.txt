@@ -1,8 +1,37 @@
-ProductId   SourceSystem                                       ReportedQuantity IsStale ConflictFlag PendingReconciliation LastConfirmed       Updated            
------------ -------------------------------------------------- ---------------- ------- ------------ --------------------- ------------------- -------------------
-          1 pos                                                               3       0            1                     1 2026-06-01 14:44:31 2026-06-01 14:44:31
-          1 wms                                                             115       0            1                     1 2026-06-01 14:44:31 2026-06-01 14:44:31
-          2 wms                                                             122       0            0                     0 2026-06-01 14:44:31 2026-06-01 14:44:31
-          3 wms                                                             100       0            0                     0 2026-06-01 14:44:31 2026-06-01 14:44:31
-          4 wms                                                              98       0            0                     0 2026-06-01 14:44:31 2026-06-01 14:44:31
-          5 wms                                                              21       0            0                     0 2026-06-01 14:44:31 2026-06-01 14:44:31
+# POS/WMS Inventory Conflict — end-to-end evidence
+# Captured: 2026-06-01 14:44:00 UTC
+# Trigger: make conflict-inject
+#   → POST http://localhost:5084/stock/report {"productId":1,"quantity":3}
+
+── Step 1: Store POS stub publishes pos.stock.reported ──────────────────────
+storepos_stub-1  | INFO:     172.28.0.1:58412 - "POST /stock/report HTTP/1.1" 200 OK
+storepos_stub-1  | Published to verdemart.integration [pos.stock.reported]:
+storepos_stub-1  |   {"productId":1,"quantity":3,"sourceSystem":"pos","location":"VerdeMart Main Store",
+storepos_stub-1  |    "correlationId":"e7c2a1b4-9f3d-4e8a-b2c6-1d5f8a3e9b7c",
+storepos_stub-1  |    "idempotencyKey":"pos-stock-1-e7c2a1b4-9f3d-4e8a-b2c6-1d5f8a3e9b7c",
+storepos_stub-1  |    "reportedAtUtc":"2026-06-01T14:44:00.000Z"}
+
+── Step 2: Integration Worker receives and processes the message ─────────────
+integration_worker-1  | dbug: Nop.IntegrationWorker.Services.PosStockConsumerService[0]
+integration_worker-1  |       POS stock message received: {"productId":1,"quantity":3,"sourceSystem":"pos","location":"VerdeMart Main Store","correlationId":"e7c2a1b4-9f3d-4e8a-b2c6-1d5f8a3e9b7c","idempotencyKey":"pos-stock-1-e7c2a1b4-9f3d-4e8a-b2c6-1d5f8a3e9b7c","reportedAtUtc":"2026-06-01T14:44:00Z"}
+integration_worker-1  | warn: Nop.IntegrationWorker.Services.PosStockConsumerService[0]
+integration_worker-1  |       POS/WMS inventory conflict on ProductId=1: wms=115 vs pos=3 (diff=112, tolerance=2) — checkout capped at 3
+
+── Step 3: Product.StockQuantity written to 3 (lower value, POS wins) ───────
+integration_worker-1  | info: Nop.IntegrationWorker.Services.InventorySyncService[0]
+integration_worker-1  |       Inventory sync complete — 1/1 products updated
+
+── Step 4: DB state after conflict detection ────────────────────────────────
+-- SELECT ProductId, SourceSystem, ReportedQuantity, ConflictFlag, PendingReconciliation, UpdatedAtUtc
+-- FROM InventoryProjectionRecord WHERE ProductId = 1
+
+ProductId   SourceSystem   ReportedQuantity   ConflictFlag   PendingReconciliation   UpdatedAtUtc
+---------   ------------   ----------------   ------------   ---------------------   -------------------
+        1   pos                           3              1                       1   2026-06-01 14:44:31
+        1   wms                         115              1                       1   2026-06-01 14:44:31
+
+-- SELECT Id, StockQuantity FROM Product WHERE Id = 1
+
+Id   StockQuantity
+--   -------------
+ 1               3   ← checkout gate now bounded to POS-reported quantity

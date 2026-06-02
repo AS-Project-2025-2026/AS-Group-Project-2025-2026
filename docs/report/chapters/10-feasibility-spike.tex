@@ -167,8 +167,10 @@ Outbox records with \texttt{Published} status; all circuit breakers \texttt{Clos
 \hline
 RabbitMQ queues & \path{screenshots/06-rabbitmq-queues-1.png};
 \path{screenshots/06-rabbitmq-queues-2.png} &
-\texttt{fulfillment.requests}, \texttt{shipping.requests}, \texttt{fulfillment.dead}, and
-\texttt{shipping.dead} queues present and active. \\
+All declared queues present: \texttt{fulfillment.requests}, \texttt{shipping.requests},
+\texttt{pos.stock.updates}, \texttt{storeops.requests}. The \texttt{pos.stock.updates}
+queue is configured with a broker-side dead-letter exchange; fulfillment and shipping
+dead-letter handling uses the database \texttt{DeadLetterRecord} table. \\
 \hline
 Warehouse failure & \path{screenshots/07-warehouse-failure-cb-open.png} &
 Outbox records in \texttt{Retrying} and \texttt{Failed} states; warehouse circuit breaker
@@ -203,7 +205,10 @@ Inventory staleness log & \path{logs/staleness-evidence.txt} &
 \texttt{PendingReconciliation = 1} after the 30-second threshold. \\
 \hline
 Inventory conflict log & \path{logs/conflict-evidence.txt} &
-POS and WMS projection rows show \texttt{ConflictFlag = 1} and the lower checkout quantity. \\
+Full end-to-end sequence: Store POS stub publishes \texttt{pos.stock.reported}; worker
+detects POS\,=\,3 vs WMS\,=\,115 (diff\,>\,tolerance); logs
+\texttt{checkout capped at 3}; \texttt{Product.StockQuantity} written to 3;
+DB shows both rows with \texttt{ConflictFlag\,=\,1} and \texttt{PendingReconciliation\,=\,1}. \\
 \hline
 Warehouse recovery log & \path{logs/warehouse-recovery.txt} &
 Half-open probe and circuit close events after the warehouse stub recovers. \\
