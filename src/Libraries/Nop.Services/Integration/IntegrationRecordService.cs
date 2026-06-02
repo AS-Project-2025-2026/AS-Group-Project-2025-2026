@@ -159,8 +159,7 @@ public partial class IntegrationRecordService : IIntegrationRecordService
     public virtual async Task<IList<InventoryProjectionRecord>> GetStaleOrConflictedProjectionsAsync()
     {
         return await _inventoryProjectionRepository.Table
-            .Where(r => (r.IsStale || r.ConflictFlag || r.PendingReconciliation)
-                     && r.SourceSystem == "wms")
+            .Where(r => r.IsStale || r.ConflictFlag || r.PendingReconciliation)
             .OrderByDescending(r => r.UpdatedAtUtc)
             .ToListAsync();
     }

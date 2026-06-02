@@ -31,8 +31,6 @@ make logs
 
 ## Scene 1 — Warehouse Failure → Circuit Breaker → Recovery (3 min)
 
-**What to say (while showing the Operations View baseline):**
-> "Before we break anything — this is the normal state. Orders are flowing, outbox records are Published, all circuit breakers are Closed. The checkout never calls the warehouse directly; it writes an outbox record atomically with the order, and the Integration Worker dispatches it asynchronously. That's why warehouse availability is irrelevant to the customer."
 
 **Step 1 — break the warehouse:**
 ```bash
@@ -50,23 +48,16 @@ make order
 - After 3 failures: `Circuit breaker OPENED`
 - `Circuit breaker OPEN — skipping call`
 
-**What to say:**
-> "The checkout completed immediately — the customer has their confirmation. Behind the scenes the warehouse is failing, exponential backoff is kicking in, and after 3 consecutive failures the circuit breaker opens. It stops hammering a system that's clearly down. This is ADR 6."
 
 **Switch to Operations View:**
 - Outbox record in `Retrying` state with retry count and next attempt time
 - Warehouse circuit breaker `Open`
 
-**What to say:**
-> "Operators see exactly what's happening — retry count, failure reason, when the next probe fires. No database query needed."
 
 **Switch to Grafana (`http://localhost:3000`):**
 - **"Adapter Failures (5m)"** stat — climbing
 - **"Retry Attempts (5m)"** stat — climbing
 - **"Adapter Call Rate by Outcome"** timeseries — visible failure spike
-
-**What to say:**
-> "And here's the architectural evidence. Prometheus scrapes the Integration Worker every 10 seconds. You can see the exact moment the warehouse went down — failures spike, retries climb, successful calls drop to zero. Operability isn't just a claim — it's visible."
 
 **Step 3 — recover the warehouse:**
 ```bash
@@ -82,15 +73,11 @@ make warehouse-recover
 - Failure stat drops back to zero
 - Success calls resume on the timeseries — recovery timestamp visible on the chart
 
-**What to say:**
-> "The probe succeeds, the circuit closes, and the pending order is dispatched automatically. No operator action. You can see the full lifecycle — degradation, sustained failure, recovery — right on the dashboard. This is the QAS 1 story."
 
 ---
 
 ## Scene 2 — Shipping Outage → Dead Letter → Operator Requeue (3 min)
 
-**What to say:**
-> "Now we show what happens when automatic recovery isn't enough — the shipping provider stays down long enough to exhaust all retry attempts."
 
 **Step 1 — break shipping:**
 ```bash
@@ -107,8 +94,6 @@ make order
 - `Retry scheduled` with increasing delay
 - `Dead-letter created` — adapter=shipping
 
-**What to say:**
-> "Warehouse succeeded — the warehouse got the order. But the shipping label couldn't be created and all retries are gone. Instead of silently dropping it, the system writes a dead-letter record. The paid order is never lost. This is ADR 7."
 
 **Switch to Operations View → Dead Letters tab:**
 - Entry with `EscalationState = New`
@@ -129,8 +114,48 @@ make shipping-recover
 - `EscalationState = Requeued`, `ResolvedAtUtc` set
 - New outbox record `Published`
 
-**What to say:**
-> "One button. No scripting, no database access. The operator requeues it, the worker dispatches it, the shipping label is created. This closes the recovery loop for QAS 4 — and it's the difference between a resilient system and one that just loses work silently."
+---
+
+## Scene 3 — POS vs Online Conflict: 1 unit, two buyers (2 min)
+
+**What this proves:** when a physical POS sale races an online checkout for the same last unit, the system detects the discrepancy, caps online checkout at the lower (POS-reported) quantity, and surfaces the conflict in the Operations View. POS always wins.
+
+**Step 1 — establish a baseline (WMS reports 5 units for product 1):**
+```bash
+# Check current inventory projection in Operations View
+# → Inventory tab: no conflict, no stale rows
+```
+Operations View → Inventory Projection tab: all rows show `ConflictFlag=OK`, `Stale=OK`.
+
+**Step 2 — POS sells units in-store (WMS still shows a higher count), creating a conflict:**
+```bash
+make conflict-inject
+# Sends: POST http://localhost:5084/stock/report {"productId": 1, "quantity": 3}
+# WMS currently reports 5+ units; diff=2+ exceeds the tolerance of 2
+```
+
+**Watch the logs:**
+- `PosStockConsumerService` receives the `pos.stock.reported` event
+- Diff between WMS and POS quantities exceeds tolerance of 2
+- `POS/WMS inventory conflict on ProductId=1: wms=X vs pos=3 — checkout capped at 3`
+- `Product.StockQuantity` updated to the lower value (POS wins)
+
+**Step 3 — switch to Operations View → Inventory Projection tab, click Refresh:**
+- Two rows for ProductId=1: `wms` and `pos`
+- Both show `ConflictFlag=Conflict` (red) and `PendingReconciliation=Yes`
+- `wms` row: ReportedQty=5 | `pos` row: ReportedQty=1
+- The **checkout is now bounded to 1** — a second online buyer cannot oversell
+
+**Step 4 — switch to Grafana:**
+- **Consistency** driver metric → `Degraded` (conflicts > 0)
+- `ConflictedInventoryProjections` stat climbs to 1
+
+**Step 5 — resolve by clearing the conflict (operator action or SQL reset):**
+```bash
+make conflict-clear
+```
+
+Operations View → after next sync cycle: `ConflictFlag=OK`, `ResolvedAtUtc` set. Grafana consistency metric returns to `Healthy`.
 
 ---
 
@@ -162,3 +187,4 @@ make shipping-recover
 |---|---|
 | Warehouse failure → recovery | Pressure point: degradation visible, checkout unblocked, auto-recovery. Covers ADR 1, ADR 2, ADR 6, QAS 1. |
 | Shipping dead letter → requeue | Escalation path: permanent failure retained, operator resolves with one click. Covers ADR 7, QAS 4. |
+| POS vs online conflict | Consistency: POS physical sale detected, checkout capped at POS qty, conflict visible in Operations View. Covers QAS 6. |

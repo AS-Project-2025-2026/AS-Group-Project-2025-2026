@@ -90,7 +90,7 @@ considered in the ADRs.
 \hline
 Availability & Asynchronous integration, durable recording of work & Outbox pattern (ADR 2): order and its integration task are committed atomically; warehouse unavailability does not block checkout. \\
 \hline
-Consistency & Stale-state marking, explicit reconciliation & Inventory metadata fields (\texttt{IsStale}, \texttt{ConflictFlag}); reconciliation record created on divergence; checkout revalidates against \texttt{PendingReconciliation}. \\
+Consistency & Stale-state marking, explicit reconciliation & Inventory metadata fields (\texttt{IsStale}, \texttt{ConflictFlag}); reconciliation record created on divergence; the Integration Worker writes the conservative (lower) quantity to \texttt{Product.StockQuantity} when a conflict is detected, which bounds the checkout stock gate indirectly. \\
 \hline
 Performance & Separate synchronous and asynchronous paths, read-model projection & Customer request path contains no external I/O; integration work runs outside the HTTP pipeline in the Integration Worker. \\
 \hline

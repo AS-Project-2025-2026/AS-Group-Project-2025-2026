@@ -369,22 +369,24 @@ the same degree of protection during long outages.
 \subsection{Consequences}
 
 The maximum propagation delay for a fulfilled order under sustained warehouse failure is bounded
-by the backoff ceiling and max retries (approximately 50 minutes of active retry before
-dead-letter). The circuit breaker protects the recovering adapter from burst load. Operators
+by the backoff ceiling and max retries. With an initial delay of 2 seconds, a multiplier of 2,
+a maximum delay of 5 minutes, and 10 retry attempts, the accumulated delay before dead-letter
+is approximately 18.5 minutes (2\,+\,4\,+\,8\,+\,16\,+\,32\,+\,64\,+\,128\,+\,256\,+\,300\,+\,300\,=\,1{,}110 seconds).
+The circuit breaker protects the recovering adapter from burst load. Operators
 must be informed when a circuit opens, because it means fulfillment work has stopped flowing
-to the affected adapter. This requires a monitoring alert and a visible circuit-state indicator
-in the Support and Operations View.
+to the affected adapter. This requires a visible circuit-state indicator in the Support and
+Operations View; external alerting (email, webhook) is a Phase~4 item documented in the
+known limitations.
 
 \textbf{Dominant forces:} fault isolation (a recovering adapter must not be overwhelmed),
 supportability (operators must know when a circuit is open and retries have stopped),
 operational complexity (backoff parameters and cooldown windows must be tuned per adapter).
 
 \textbf{Accepted damage:} under sustained failure, maximum propagation delay before
-dead-letter is approximately 50 minutes; circuit-breaker state must be surfaced in the
-Support and Operations View and monitored with alerting; backoff parameters introduce
+dead-letter is approximately 18.5 minutes with production defaults; circuit-breaker state
+must be surfaced in the Support and Operations View; backoff parameters introduce
 configuration that must be validated during testing. This decision should be revisited if
-the 50-minute dead-letter threshold is too slow for a particular adapter's recovery
-characteristic.
+the dead-letter threshold is too slow for a particular adapter's recovery characteristic.
 
 \section{ADR 7: Dead-Letter Queue and Operator Intervention Model}
 
@@ -404,14 +406,18 @@ therefore needs a durable dead-letter record and a defined escalation process.
 Failed messages are written to a dead-letter table in the nopCommerce database with the
 following fields: the original message payload, the idempotency key, the correlation identifier
 (order ID), the adapter that failed, the failure reason for the last attempt, the timestamp of
-the first and last attempt, and the escalation state (new, acknowledged, resolved).
+the first and last attempt, and the escalation state (\texttt{New}, \texttt{Requeued}).
 
 The Support and Operations View surfaces dead-letter records alongside pending and retrying
-work. An alert fires to the operations team when a new dead-letter entry is created. Operators
-can manually re-queue a dead-letter message after the dependency is confirmed healthy, or mark
-it as resolved if the situation is handled by other means such as manual fulfillment or refund.
+work. Operators can manually re-queue a dead-letter message after the dependency is confirmed
+healthy by clicking the requeue action in the Operations View, which creates a new outbox
+record from the original payload. External alerting (email, webhook, Slack) when a new
+dead-letter entry is created is not implemented in the spike and is deferred to Phase~4
+(see known limitations).
 
-Dead-letter records are retained for 30 days and then archived.
+Dead-letter records are retained indefinitely in the spike environment. A periodic archival
+or deletion policy (for example, 30 days aligned with the order dispute window) is a Phase~4
+operational concern and is not implemented.
 
 \subsection{Alternatives Considered}
 
@@ -430,17 +436,16 @@ transient from permanent failures. Operations cannot act on a problem they canno
 The dead-letter table is integration-critical infrastructure and must be monitored and backed
 up alongside the orders table. The operator intervention model introduces a human step in the
 recovery path, which is appropriate for permanent failures but requires clear UI affordances
-in the Support and Operations View. The 30-day retention policy must be aligned with the
-business's order dispute window.
+in the Support and Operations View.
 
-\textbf{Dominant forces:} supportability (operators must be able to observe, acknowledge,
-and act on permanent failures), data consistency (a paid order must never be silently
-abandoned), operational complexity (human intervention must be guided by clear escalation
-state and UI affordances).
+\textbf{Dominant forces:} supportability (operators must be able to observe and act on
+permanent failures), data consistency (a paid order must never be silently abandoned),
+operational complexity (human intervention must be guided by clear escalation state and
+UI affordances).
 
 \textbf{Accepted damage:} permanent failures require a human step in the recovery path, which
 introduces latency and operational load; the dead-letter table must be backed up and monitored
-as critical infrastructure; the 30-day retention creates a storage obligation. This decision
-should be revisited if the volume of dead-letter entries grows to a level that makes manual
-review unsustainable, at which point automated triage or a tiered escalation model may be
-needed.
+as critical infrastructure; external alerting and a retention policy are deferred to Phase~4.
+This decision should be revisited if the volume of dead-letter entries grows to a level that
+makes manual review unsustainable, at which point automated triage or a tiered escalation
+model may be needed.

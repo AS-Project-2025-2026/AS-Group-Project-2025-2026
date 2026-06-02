@@ -173,6 +173,22 @@ product page.
 
 ---
 
+## 10. Dead-letter records are retained indefinitely
+
+**What:** `DeadLetterRecord` rows are never deleted or archived. There is no scheduled
+cleanup job, no archival column, and no retention policy enforced by the codebase.
+
+**Why:** A periodic archival or deletion policy (e.g. 30 days aligned with the order dispute
+window) requires a scheduled job and an archival target. This was not included in the
+integration spike scope. The `DeadLetterRecord` table is backed up as part of the normal
+database backup, which is sufficient for the coursework environment.
+
+**Consequence:** In a long-running production environment, the table grows unboundedly.
+A `DELETE WHERE CreatedAtUtc < DATEADD(DAY, -30, GETUTCDATE())` job would be straightforward
+to add. For the demo (`docker compose down -v` on teardown) this has no practical effect.
+
+---
+
 ## Summary table
 
 | # | Limitation | Architectural impact | Phase to address |
@@ -186,3 +202,4 @@ product page.
 | 7 | Load test on single Docker host only | p95 thresholds met; absolute throughput ceiling lower than production cluster | By design |
 | 8 | Worker shares nopCommerce SQL instance | Not a boundary violation; integration tables are separate | Optional Phase 4 |
 | 9 | Stale/conflict state not shown to customers | Customers see conservative quantity; no UI indicator | Phase 3/4 |
+| 10 | Dead-letter records retained indefinitely | Table grows unboundedly; 30-day archival policy deferred | Phase 4 |

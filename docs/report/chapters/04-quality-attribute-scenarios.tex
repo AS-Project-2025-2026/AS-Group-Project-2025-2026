@@ -63,7 +63,7 @@ Environment & Concurrent web and physical-store sales for the same product durin
 \hline
 Response & The commerce core detects that the stock record has exceeded its staleness threshold, marks it stale, revalidates stock before checkout completion, and records an inventory discrepancy for reconciliation. \\
 \hline
-Response measure & Product pages show stale stock status within 30 seconds of the staleness threshold being exceeded; overselling stays under 1\% of affected order lines; inventory discrepancies are queued for reconciliation within 1 minute. \\
+Response measure & Stale stock status is visible to operators in the Operations View within 30 seconds of the staleness threshold being exceeded; the conservative (lower) quantity is applied to the checkout stock gate within one sync cycle; overselling stays under 1\% of affected order lines; inventory discrepancies are queued for reconciliation within 1 minute. Customer-facing product pages show the conservative stock quantity but do not display an explicit freshness indicator (Phase~3/4 item). \\
 \hline
 \end{tabular}
 \end{center}
