@@ -162,7 +162,14 @@ Runtime evidence is collected in \texttt{docs/evidence/} and covers the followin
 \hline
 \textbf{Scenario} & \textbf{Evidence file} & \textbf{What it shows} \\
 \hline
-Normal flow & \path{screenshots/05-normal-flow.png} &
+System healthy baseline & \path{screenshots/01-system-healthy.png} &
+Operations View with no errors, no stale or conflicted inventory. \\
+\hline
+System degraded state & \path{screenshots/02-system-degraded.png} &
+Operations View with degraded metrics; circuit breaker or queue backlog present. \\
+\hline
+Normal flow & \path{screenshots/05-normal-flow-1.png};
+\path{screenshots/05-normal-flow-2.png} &
 Outbox records with \texttt{Published} status; all circuit breakers \texttt{Closed}. \\
 \hline
 RabbitMQ queues & \path{screenshots/06-rabbitmq-queues-1.png};
@@ -172,7 +179,8 @@ All declared queues present: \texttt{fulfillment.requests}, \texttt{shipping.req
 queue is configured with a broker-side dead-letter exchange; fulfillment and shipping
 dead-letter handling uses the database \texttt{DeadLetterRecord} table. \\
 \hline
-Warehouse failure & \path{screenshots/07-warehouse-failure-cb-open.png} &
+Warehouse failure & \path{screenshots/07-warehouse-failure-cb-open-1.png};
+\path{screenshots/07-warehouse-failure-cb-open-2.png} &
 Outbox records in \texttt{Retrying} and \texttt{Failed} states; warehouse circuit breaker
 in \texttt{Open} state. \\
 \hline
