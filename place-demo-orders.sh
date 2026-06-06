@@ -16,7 +16,7 @@ GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
 ok()   { echo -e "${GREEN}[OK]${NC}    $*"; }
 info() { echo -e "${YELLOW}[...]${NC}   $*"; }
 
-COMPOSE="docker compose -f /home/alof/Desktop/AS/AS-Group-Project-2025-2026/docker-compose.yml"
+COMPOSE="docker compose -f $(cd "$(dirname "$0")" && pwd)/docker-compose.yml"
 SQL() { $COMPOSE exec nopcommerce_database \
   /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "nopCommerce_db_password" -d NopCommerce -Q "$1" 2>/dev/null; }
 

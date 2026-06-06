@@ -18,7 +18,7 @@ QUANTITY="${3:-1}"
 ORDER_PAUSE_SECONDS="${ORDER_PAUSE_SECONDS:-65}"
 
 EMAIL="${DEMO_EMAIL:-admin@verdemart.com}"
-PASSWORD="${DEMO_PASSWORD:-Admin1234!}"
+PASSWORD="${DEMO_PASSWORD:-admin}"
 
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
 ok()   { echo -e "${GREEN}[OK]${NC}    $*"; }

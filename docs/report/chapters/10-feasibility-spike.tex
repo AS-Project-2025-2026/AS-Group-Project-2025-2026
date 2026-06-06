@@ -70,8 +70,8 @@ rows. \\
 \hline
 Is a POS--WMS inventory conflict detected and the checkout quantity bounded? &
 POS stock reported through the Store POS stub's \texttt{POST /stock/report} endpoint, which
-publishes a \texttt{pos.stock.reported} message with a quantity diverging from the WMS value
-by more than the configured tolerance. &
+publishes a \texttt{pos.stock.reported} message to the \texttt{pos.stock.updates}
+queue with a quantity diverging from the WMS value by more than the configured tolerance (2 units). &
 Yes. The POS stock consumer detects the divergence, sets \texttt{ConflictFlag},
 records \texttt{PendingReconciliation}, and writes the lower quantity to
 \texttt{Product.StockQuantity} to prevent overselling. \\
