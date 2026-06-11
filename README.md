@@ -46,16 +46,13 @@ AS-Group-Project-2025-2026/
 │   ├── evidence/                                       # Runtime evidence pack
 │   │   ├── screenshots/                                # Annotated runtime screenshots
 │   │   ├── logs/                                       # Worker log excerpts + load test results
-│   │   ├── known-limitations.md                        # Explicit scope cuts and limitations
 │   │   ├── load-test.js                                # k6 QAS 3 load test script
-│   │   └── presentation-demo-script.md                 # Presentation demo guide
-│   ├── report/                                         # Architecture report (LaTeX source + PDF)
-│   │   ├── chapters/                                   # Report chapters (01-10)
-│   │   ├── images/                                     # Architecture diagrams and figures
-│   │   ├── report.tex                                  # Main LaTeX file
-│   │   └── report.pdf                                  # Compiled report
-│   ├── architecture-framework.md                       # ADD framework application
-│   └── observability-plan.md                           # Grafana / Prometheus observability plan
+│   │   └── README.md                                   # Evidence documentation
+│   └── report/                                         # Architecture report (LaTeX source + PDF)
+│       ├── chapters/                                   # Report chapters (01-10)
+│       ├── images/                                     # Architecture diagrams and figures
+│       ├── report.tex                                  # Main LaTeX file
+│       └── report.pdf                                  # Compiled report
 ├── src/
 │   ├── Integration/
 │   │   └── Nop.IntegrationWorker/                      # Integration Worker (independently deployable)
@@ -126,14 +123,13 @@ Runtime evidence in [`docs/evidence/`](docs/evidence/):
 
 | File | Description |
 |---|---|
-| [`screenshots/`](docs/evidence/screenshots/) | Annotated screenshots: normal flow, warehouse failure, circuit breaker, dead letter, requeue, inventory staleness and conflict |
+| [`screenshots/`](docs/evidence/screenshots/) | 15 annotated screenshots: system baseline, normal flow, warehouse failure/recovery, circuit breaker states, dead letters, inventory staleness and conflict |
 | [`logs/warehouse-failure.txt`](docs/evidence/logs/warehouse-failure.txt) | Retry attempts, exponential delay, circuit breaker open/close |
 | [`logs/warehouse-recovery.txt`](docs/evidence/logs/warehouse-recovery.txt) | Half-open probe and circuit close after recovery |
 | [`logs/checkout-not-blocked.txt`](docs/evidence/logs/checkout-not-blocked.txt) | Checkout completing while warehouse integration is asynchronous |
 | [`logs/conflict-evidence.txt`](docs/evidence/logs/conflict-evidence.txt) | POS vs WMS conflict detection, ConflictFlag, checkout bounded |
 | [`logs/staleness-evidence.txt`](docs/evidence/logs/staleness-evidence.txt) | IsStale set after threshold exceeded |
 | [`logs/qas3-load-test-results.json`](docs/evidence/logs/qas3-load-test-results.json) | k6 load test: checkout p95 = 74 ms, order-status p95 = 87 ms at 25 VUs — both QAS 3 thresholds passed |
-| [`known-limitations.md`](docs/evidence/known-limitations.md) | Explicit scope cuts, known limitations, and phase roadmap |
 | [`load-test.js`](docs/evidence/load-test.js) | k6 script to reproduce the QAS 3 load test |
 
 ---
